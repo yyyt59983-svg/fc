@@ -1,14 +1,6 @@
 # Aegis Tactical Comm (Ver 2.5.0-AUDIO)
 
-![Build Status](https://github.com/yyyt59983-svg/fc/actions/workflows/build.yml/badge.svg)
-
 Professional-grade tactical communicator with real-time PTT voice streaming, manual frequency management, and multi-platform support.
-
-## 📥 Downloads
-
-Latest builds are automatically generated via GitHub Actions:
-- **[Windows Portable (.exe)](https://github.com/yyyt59983-svg/fc/actions)** - Download from the latest successful "Build Multi-Platform" run.
-- **[Android Debug APK](https://github.com/yyyt59983-svg/fc/actions)** - Download from the latest successful "Build Multi-Platform" run.
 
 ## Features
 
@@ -19,16 +11,20 @@ Latest builds are automatically generated via GitHub Actions:
 - **Visualizer**: High-fidelity tactical signal visualizer for RX/TX feedback.
 - **Multi-Platform**: Deployable on Windows (.exe), Android (Native/PWA), and Web.
 
-## Installation
+## Download / Installation
 
-### Windows
-1. Download the `Aegis_Tactical_Comm.exe` from the latest release.
-2. Run the executable for a portable, distraction-free experience.
+[![Windows Build](https://github.com/yyyt59983-svg/fc/actions/workflows/build.yml/badge.svg)](https://github.com/yyyt59983-svg/fc/actions/workflows/build.yml)
+[![Android Build](https://github.com/yyyt59983-svg/fc/actions/workflows/build.yml/badge.svg)](https://github.com/yyyt59983-svg/fc/actions/workflows/build.yml)
 
-### Android
-1. Open the application URL in Chrome.
-2. Select "Add to Home Screen" to install as a PWA.
-3. Or install the provided `.apk` for a native experience.
+### 🖥️ Windows (Desktop)
+Download the latest automated build for Windows. This is a portable executable, so no installation is required—just extract and run.
+- [⬇️ Download Windows EXE (Latest Build)](https://nightly.link/yyyt59983-svg/fc/workflows/build/main/Aegis-Tactical-Comm-Windows.zip)
+
+### 📱 Android (Mobile)
+Download the latest Android APK. You may need to enable "Install Unknown Apps" in your Android settings.
+- [⬇️ Download Android APK (Latest Build)](https://nightly.link/yyyt59983-svg/fc/workflows/build/main/Aegis-Tactical-Comm-Android.zip)
+
+Alternatively, you can open the deployed URL in Chrome and select **"Add to Home Screen"** to install as a Lightweight PWA.
 
 ## Development
 
