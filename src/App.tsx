@@ -62,9 +62,9 @@ export default function App() {
   const [editingChannel, setEditingChannel] = useState<{id: string, freq: string, label: string, isFavorite?: boolean} | null>(null);
   const [manualFreq, setManualFreq] = useState('');
 
-  // Connect to server
+  // Connect to server (Hardcoded to PC IP for Android/Windows local network test)
   useEffect(() => {
-    const socketUrl = window.location.hostname === 'localhost' ? 'http://localhost:3000' : window.location.origin;
+    const socketUrl = 'http://10.220.7.211:3000';
     const newSocket = io(socketUrl);
     setSocket(newSocket);
     return () => { newSocket.close(); };
