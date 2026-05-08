@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-[#0a0a0a] text-[#e0e0e0] font-sans;
+  }
+}
+
+.tactical-border {
+  @apply border border-white/10 shadow-[0_0_15px_rgba(0,0,0,0.5)];
+}
+
+.glow-orange {
+  @apply shadow-[0_0_10px_rgba(255,136,0,0.3)];
+}
+
+.led-indicator {
+  @apply w-2 h-2 rounded-full;
+}
+

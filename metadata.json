@@ -1,0 +1,6 @@
+{
+  "name": "Aegis Tactical Comm",
+  "description": "An emergency-grade peer-to-peer communicator with Push-to-Talk (PTT), simulated frequency scanning, and tactical visual feedback.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["real-time-communication", "audio-processing"]
+}

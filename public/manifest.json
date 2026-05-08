@@ -1,0 +1,17 @@
+{
+  "name": "Aegis Tactical Comm",
+  "short_name": "Aegis",
+  "description": "Tactical Peer-to-Peer Communicator",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050505",
+  "theme_color": "#ff8800",
+  "icons": [
+    {
+      "src": "aegis-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
