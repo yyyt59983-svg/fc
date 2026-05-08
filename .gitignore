@@ -28,8 +28,6 @@ Thumbs.db
 Desktop.ini
 
 # Capacitor
-/android
-/ios
 /www
 
 # Electron

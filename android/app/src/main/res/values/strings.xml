@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">FC</string>
+    <string name="title_activity_main">FC</string>
+    <string name="package_name">com.aegis.tactical</string>
+    <string name="custom_url_scheme">com.aegis.tactical</string>
+</resources>
