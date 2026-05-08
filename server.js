@@ -1,7 +1,6 @@
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import { createServer as createViteServer } from 'vite';
 import path from 'path';
 
 async function startServer() {
@@ -52,6 +51,7 @@ async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production' && !process.env.SKIP_VITE) {
     try {
+      const { createServer: createViteServer } = await import('vite');
       const vite = await createViteServer({
         server: { middlewareMode: true },
         appType: 'spa',
