@@ -45,6 +45,12 @@ async function startServer() {
     });
   });
 
+  // Radar Beacon for Network Scanner
+  app.get('/api/ping', (req, res) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.json({ service: 'aegis-tactical', status: 'active' });
+  });
+
   // Serve public assets
   app.use(express.static(path.join(process.cwd(), 'public')));
 

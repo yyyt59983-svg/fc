@@ -61,17 +61,71 @@ export default function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [editingChannel, setEditingChannel] = useState<{id: string, freq: string, label: string, isFavorite?: boolean} | null>(null);
   const [manualFreq, setManualFreq] = useState('');
+  
+  const [isScanning, setIsScanning] = useState(false);
+  const [serverIp, setServerIp] = useState<string | null>(null);
+
+  const startRadarScan = useCallback(async () => {
+    setIsScanning(true);
+    setServerIp(null);
+    
+    // Common local subnets
+    const subnets = ['192.168.1', '192.168.0', '10.0.0', '10.220.7', '192.168.29', '172.20.10'];
+    const pings = [];
+    let foundIp: string | null = null;
+
+    for (const subnet of subnets) {
+      for (let i = 2; i < 255; i++) {
+        if (foundIp) break;
+        const ip = `${subnet}.${i}`;
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        
+        pings.push(
+          fetch(`http://${ip}:3000/api/ping`, { signal: controller.signal })
+            .then(res => res.json())
+            .then(data => {
+              if (data.service === 'aegis-tactical' && !foundIp) {
+                foundIp = ip;
+                setServerIp(ip);
+                setIsScanning(false);
+              }
+            })
+            .catch(() => {})
+            .finally(() => clearTimeout(timeoutId))
+        );
+      }
+    }
+    
+    await Promise.allSettled(pings);
+    
+    if (!foundIp) {
+      setIsScanning(false);
+      const manual = prompt('Radar sweep failed. Enter Base Station IP manually:');
+      if (manual) {
+        setServerIp(manual);
+      }
+    }
+  }, []);
 
   // Connect to server
   useEffect(() => {
-    // Windows app runs the server locally, Android connects to the Windows LAN IP
     const isNativeAndroid = typeof (window as any).Capacitor !== 'undefined' && (window as any).Capacitor.isNativePlatform();
-    const socketUrl = isNativeAndroid ? 'http://10.220.7.211:3000' : 'http://localhost:3000';
     
+    if (isNativeAndroid && !serverIp) {
+      startRadarScan();
+      return;
+    }
+
+    const socketUrl = isNativeAndroid ? `http://${serverIp}:3000` : 'http://localhost:3000';
     const newSocket = io(socketUrl);
+    
+    newSocket.on('connect', () => console.log('Connected to Base Station'));
+    
     setSocket(newSocket);
     return () => { newSocket.close(); };
-  }, []);
+  }, [serverIp, startRadarScan]);
 
   // Save custom channels and history
   useEffect(() => {
@@ -201,6 +255,26 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-[#050505]">
+      {/* Radar Overlay */}
+      <AnimatePresence>
+        {isScanning && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center backdrop-blur-sm"
+          >
+            <div className="relative flex items-center justify-center">
+              <div className="absolute w-32 h-32 border-2 border-[#ff8800] rounded-full animate-ping opacity-20" />
+              <div className="absolute w-24 h-24 border border-[#ff8800] rounded-full animate-ping opacity-40 delay-150" />
+              <Activity className="w-12 h-12 text-[#ff8800] animate-pulse" />
+            </div>
+            <h2 className="text-[#ff8800] font-mono text-xl tracking-widest mt-8 mb-2">RADAR SWEEP ACTIVE</h2>
+            <p className="text-white/50 font-mono text-sm">Searching for Base Station frequencies...</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Device Body */}
       <motion.div 
         initial={{ y: 20, opacity: 0 }}
@@ -228,6 +302,17 @@ export default function App() {
             </div>
             
             <div className="flex gap-2">
+              <button 
+                onClick={startRadarScan}
+                className={cn(
+                  "w-10 h-10 rounded-full flex items-center justify-center transition-all",
+                  isScanning ? "bg-[#ff8800] text-white animate-pulse" : "bg-white/5 text-white/40 hover:bg-white/10 hover:text-[#ff8800]"
+                )}
+                title="Radar Scan for Base Station"
+              >
+                <Activity className="w-4 h-4" />
+              </button>
+
               <button 
                 onClick={() => window.open('/download.html', '_blank')}
                 className="w-10 h-10 rounded-full flex items-center justify-center bg-white/5 text-white/40 hover:bg-white/10 hover:text-white transition-all"
