@@ -63,69 +63,71 @@ export default function App() {
   const [manualFreq, setManualFreq] = useState('');
   
   const [isScanning, setIsScanning] = useState(false);
-  const [serverIp, setServerIp] = useState<string | null>(null);
+  const [phaserCode, setPhaserCode] = useState<string | null>(null);
+  const [tunnelUrl, setTunnelUrl] = useState<string | null>(null);
 
-  const startRadarScan = useCallback(async () => {
+  const createPhaserCode = useCallback(async () => {
+    const isNativeAndroid = typeof (window as any).Capacitor !== 'undefined' && (window as any).Capacitor.isNativePlatform();
+    if (isNativeAndroid) {
+      alert("Command Station Required: Only the Windows PC can host a new Phaser Network. Use 'Join' to connect on Android.");
+      return;
+    }
+
     setIsScanning(true);
-    setServerIp(null);
+    const code = Math.random().toString(36).substring(2, 7).toUpperCase();
     
-    // Common local subnets
-    const subnets = ['192.168.1', '192.168.0', '10.0.0', '10.220.7', '192.168.29', '172.20.10'];
-    const pings = [];
-    let foundIp: string | null = null;
-
-    for (const subnet of subnets) {
-      for (let i = 2; i < 255; i++) {
-        if (foundIp) break;
-        const ip = `${subnet}.${i}`;
-        
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);
-        
-        pings.push(
-          fetch(`http://${ip}:3000/api/ping`, { signal: controller.signal })
-            .then(res => res.json())
-            .then(data => {
-              if (data.service === 'aegis-tactical' && !foundIp) {
-                foundIp = ip;
-                setServerIp(ip);
-                setIsScanning(false);
-              }
-            })
-            .catch(() => {})
-            .finally(() => clearTimeout(timeoutId))
-        );
+    try {
+      const res = await fetch('http://localhost:3000/api/tunnel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      });
+      const data = await res.json();
+      if (data.url) {
+        setPhaserCode(code);
+        setTunnelUrl(data.url);
+      } else {
+        alert("Tunnel failed to initialize.");
       }
-    }
-    
-    await Promise.allSettled(pings);
-    
-    if (!foundIp) {
+    } catch (e) {
+      alert("Error starting tunnel. Is the local server running?");
+    } finally {
       setIsScanning(false);
-      const manual = prompt('Radar sweep failed. Enter Base Station IP manually:');
-      if (manual) {
-        setServerIp(manual);
-      }
     }
+  }, []);
+
+  const joinPhaserCode = useCallback(() => {
+    const code = prompt("Enter 5-digit Phaser Code:");
+    if (!code) return;
+    const normalized = code.toUpperCase().trim();
+    if (normalized.length !== 5) {
+      alert("Invalid Phaser Code length.");
+      return;
+    }
+    setPhaserCode(normalized);
+    setTunnelUrl(`https://aegis-tac-${normalized.toLowerCase()}.loca.lt`);
   }, []);
 
   // Connect to server
   useEffect(() => {
+    if (!tunnelUrl && !phaserCode) return; // Wait until code is created or joined
+
     const isNativeAndroid = typeof (window as any).Capacitor !== 'undefined' && (window as any).Capacitor.isNativePlatform();
     
-    if (isNativeAndroid && !serverIp) {
-      startRadarScan();
-      return;
-    }
-
-    const socketUrl = isNativeAndroid ? `http://${serverIp}:3000` : 'http://localhost:3000';
-    const newSocket = io(socketUrl);
+    // Windows connects internally, Android connects via global tunnel
+    const socketUrl = isNativeAndroid ? tunnelUrl : 'http://localhost:3000';
     
-    newSocket.on('connect', () => console.log('Connected to Base Station'));
+    const newSocket = io(socketUrl, {
+      extraHeaders: {
+        "Bypass-Tunnel-Reminder": "true"
+      }
+    });
+    
+    newSocket.on('connect', () => console.log('Connected to Phaser Network'));
     
     setSocket(newSocket);
     return () => { newSocket.close(); };
-  }, [serverIp, startRadarScan]);
+  }, [tunnelUrl, phaserCode]);
 
   // Save custom channels and history
   useEffect(() => {
@@ -165,10 +167,10 @@ export default function App() {
 
   // Join channel logic
   useEffect(() => {
-    if (socket && isPowered) {
-      socket.emit('join-channel', channel.id);
+    if (socket && isPowered && phaserCode) {
+      socket.emit('join-channel', `${phaserCode}-${channel.id}`);
     }
-  }, [socket, channel, isPowered]);
+  }, [socket, channel, isPowered, phaserCode]);
 
   // Socket listeners
   useEffect(() => {
@@ -215,7 +217,7 @@ export default function App() {
   }, [socket, isPowered]);
 
   const handlePttStart = useCallback(async () => {
-    if (!isPowered || isReceiving) return;
+    if (!isPowered || isReceiving || !phaserCode) return;
     
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -224,17 +226,17 @@ export default function App() {
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
-          socket?.emit('audio-data', { channelId: channel.id, data: e.data });
+          socket?.emit('audio-data', { channelId: `${phaserCode}-${channel.id}`, data: e.data });
         }
       };
 
       recorder.start(100); // Stream in 100ms chunks
       setIsTransmitting(true);
-      socket?.emit('ptt-start', { channelId: channel.id, userId });
+      socket?.emit('ptt-start', { channelId: `${phaserCode}-${channel.id}`, userId });
     } catch (err) {
       console.error('Mic access denied:', err);
     }
-  }, [isPowered, isReceiving, socket, channel, userId]);
+  }, [isPowered, isReceiving, socket, channel, userId, phaserCode]);
 
   const handlePttStop = useCallback(() => {
     if (mediaRecorderRef.current) {
@@ -243,34 +245,58 @@ export default function App() {
       mediaRecorderRef.current = null;
     }
     setIsTransmitting(false);
-    socket?.emit('ptt-stop', { channelId: channel.id, userId });
-  }, [socket, channel, userId]);
+    if (phaserCode) {
+      socket?.emit('ptt-stop', { channelId: `${phaserCode}-${channel.id}`, userId });
+    }
+  }, [socket, channel, userId, phaserCode]);
 
   const handleSos = () => {
-    if (!isPowered) return;
-    socket?.emit('sos-beacon', { channelId: channel.id, userId, location: 'UNKNOWN' });
+    if (!isPowered || !phaserCode) return;
+    socket?.emit('sos-beacon', { channelId: `${phaserCode}-${channel.id}`, userId, location: 'UNKNOWN' });
     setSosActive(true);
     setTimeout(() => setSosActive(false), 3000);
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-[#050505]">
-      {/* Radar Overlay */}
+      {/* Phaser Network Overlay */}
       <AnimatePresence>
-        {isScanning && (
+        {!phaserCode && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center backdrop-blur-sm"
+            className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center backdrop-blur-sm p-4"
           >
-            <div className="relative flex items-center justify-center">
-              <div className="absolute w-32 h-32 border-2 border-[#ff8800] rounded-full animate-ping opacity-20" />
-              <div className="absolute w-24 h-24 border border-[#ff8800] rounded-full animate-ping opacity-40 delay-150" />
-              <Activity className="w-12 h-12 text-[#ff8800] animate-pulse" />
-            </div>
-            <h2 className="text-[#ff8800] font-mono text-xl tracking-widest mt-8 mb-2">RADAR SWEEP ACTIVE</h2>
-            <p className="text-white/50 font-mono text-sm">Searching for Base Station frequencies...</p>
+            <Shield className="w-16 h-16 text-[#ff8800] mb-6" />
+            <h2 className="text-white font-mono text-xl tracking-widest mb-8 uppercase text-center">Tactical Network Offline</h2>
+            
+            {isScanning ? (
+              <div className="flex flex-col items-center">
+                <Activity className="w-8 h-8 text-[#ff8800] animate-pulse mb-4" />
+                <p className="text-[#ff8800] font-mono text-sm animate-pulse">Initializing Global Tunnel...</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4 w-full max-w-xs">
+                <button 
+                  onClick={createPhaserCode}
+                  className="w-full py-4 bg-[#ff8800]/20 border border-[#ff8800]/50 rounded-xl text-[#ff8800] font-mono hover:bg-[#ff8800]/30 transition-all uppercase tracking-wider shadow-[0_0_15px_rgba(255,136,0,0.2)]"
+                >
+                  Create Phaser Network
+                </button>
+                <div className="relative flex items-center py-2">
+                  <div className="flex-grow border-t border-white/10"></div>
+                  <span className="flex-shrink-0 mx-4 text-white/30 font-mono text-xs">OR</span>
+                  <div className="flex-grow border-t border-white/10"></div>
+                </div>
+                <button 
+                  onClick={joinPhaserCode}
+                  className="w-full py-4 bg-white/5 border border-white/10 rounded-xl text-white/70 font-mono hover:bg-white/10 hover:text-white transition-all uppercase tracking-wider"
+                >
+                  Join Phaser Network
+                </button>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -301,17 +327,17 @@ export default function App() {
               </div>
             </div>
             
-            <div className="flex gap-2">
-              <button 
-                onClick={startRadarScan}
-                className={cn(
-                  "w-10 h-10 rounded-full flex items-center justify-center transition-all",
-                  isScanning ? "bg-[#ff8800] text-white animate-pulse" : "bg-white/5 text-white/40 hover:bg-white/10 hover:text-[#ff8800]"
-                )}
-                title="Radar Scan for Base Station"
-              >
-                <Activity className="w-4 h-4" />
-              </button>
+            <div className="flex gap-2 items-center">
+              {phaserCode && (
+                <button 
+                  onClick={() => navigator.clipboard.writeText(phaserCode)}
+                  className="px-3 py-1 bg-[#ff8800]/20 border border-[#ff8800]/30 hover:bg-[#ff8800]/40 rounded-lg flex items-center gap-2 transition-all cursor-pointer group"
+                  title="Copy Phaser Code"
+                >
+                  <Activity className="w-3 h-3 text-[#ff8800] group-hover:animate-pulse" />
+                  <span className="text-[#ff8800] font-mono text-xs font-bold tracking-widest">{phaserCode}</span>
+                </button>
+              )}
 
               <button 
                 onClick={() => window.open('/download.html', '_blank')}

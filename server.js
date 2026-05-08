@@ -51,6 +51,27 @@ async function startServer() {
     res.json({ service: 'aegis-tactical', status: 'active' });
   });
 
+  // Phaser Code Tunnel Generator
+  let currentTunnel = null;
+  app.post('/api/tunnel', express.json(), async (req, res) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ error: 'Code required' });
+    
+    if (currentTunnel) {
+      currentTunnel.close();
+    }
+    
+    try {
+      const localtunnel = (await import('localtunnel')).default;
+      currentTunnel = await localtunnel({ port: PORT, subdomain: `aegis-tac-${code.toLowerCase()}` });
+      res.json({ url: currentTunnel.url });
+    } catch (err) {
+      console.error('Tunnel error:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Serve public assets
   app.use(express.static(path.join(process.cwd(), 'public')));
 
