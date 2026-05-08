@@ -5,8 +5,8 @@
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
-    "start": "node server.ts",
+    "dev": "node server.js",
+    "start": "node server.js",
     "build": "vite build",
     "build:win": "vite build && electron-builder",
     "build:android": "vite build && npx cap copy && npx cap sync android",

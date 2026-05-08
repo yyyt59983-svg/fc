@@ -2,7 +2,14 @@ const { app, BrowserWindow } = require('electron');
 const path = require('path');
 const isDev = process.env.NODE_ENV === 'development';
 
+const { fork } = require('child_process');
+
+let serverProcess;
+
 function createWindow() {
+  // Start the server
+  serverProcess = fork(path.join(__dirname, '../server.js'));
+
   const win = new BrowserWindow({
     width: 450,
     height: 850,
@@ -16,16 +23,16 @@ function createWindow() {
     icon: path.join(__dirname, '../public/aegis-icon.png')
   });
 
-  if (isDev) {
-    win.loadURL('http://localhost:5173');
-  } else {
-    win.loadFile(path.join(__dirname, '../dist/index.html'));
-  }
+  // Wait a moment for server to start, then load it
+  setTimeout(() => {
+    win.loadURL('http://localhost:3000');
+  }, 1000);
 }
 
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
+  if (serverProcess) serverProcess.kill();
   if (process.platform !== 'darwin') {
     app.quit();
   }
