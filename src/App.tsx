@@ -62,9 +62,12 @@ export default function App() {
   const [editingChannel, setEditingChannel] = useState<{id: string, freq: string, label: string, isFavorite?: boolean} | null>(null);
   const [manualFreq, setManualFreq] = useState('');
 
-  // Connect to server (Hardcoded to PC IP for Android/Windows local network test)
+  // Connect to server
   useEffect(() => {
-    const socketUrl = 'http://10.220.7.211:3000';
+    // Windows app runs the server locally, Android connects to the Windows LAN IP
+    const isNativeAndroid = typeof (window as any).Capacitor !== 'undefined' && (window as any).Capacitor.isNativePlatform();
+    const socketUrl = isNativeAndroid ? 'http://10.220.7.211:3000' : 'http://localhost:3000';
+    
     const newSocket = io(socketUrl);
     setSocket(newSocket);
     return () => { newSocket.close(); };

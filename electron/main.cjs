@@ -8,7 +8,9 @@ let serverProcess;
 
 function createWindow() {
   // Start the server
-  serverProcess = fork(path.join(__dirname, '../server.js'));
+  serverProcess = fork(path.join(__dirname, '../server.js'), [], {
+    cwd: path.join(__dirname, '../')
+  });
 
   const win = new BrowserWindow({
     width: 450,
