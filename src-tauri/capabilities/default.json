@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "identifier": "default",
   "description": "Default permissions for the Roxy AI app",
-  "platforms": ["windows", "linux", "mac", "android", "ios"],
+  "platforms": ["windows", "linux", "macOS", "android", "iOS"],
   "windows": ["main"],
   "permissions": [
     "core:path:default",
