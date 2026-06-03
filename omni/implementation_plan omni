@@ -1,0 +1,123 @@
+# AI Companion Database System with Speech-to-Speech Modulation
+
+This plan outlines the architecture, database schema, and Python implementation of a premium, modular SQLite database tailored specifically for an AI Companion application. The system will store conversation history (inputs and responses), voice profiles, and detailed metrics for speech-to-speech voice modulation.
+
+## Proposed Architecture
+
+```mermaid
+erDiagram
+    SESSIONS ||--o{ MESSAGES : "contains"
+    MESSAGES ||--o| SPEECH_MODULATION_LOGS : "logs modulation for"
+    VOICE_PROFILES ||--o{ SPEECH_MODULATION_LOGS : "uses profile"
+
+    SESSIONS {
+        string session_id PK
+        string companion_name
+        string summary
+        datetime created_at
+        datetime updated_at
+    }
+
+    MESSAGES {
+        string message_id PK
+        string session_id FK
+        string sender "user | companion"
+        string text_content
+        string audio_path
+        blob audio_blob
+        int latency_ms
+        datetime created_at
+    }
+
+    VOICE_PROFILES {
+        string profile_id PK
+        string name "unique name"
+        float pitch_shift "pitch shifting in semitones"
+        float speed_rate "speed rate multiplier"
+        float volume_gain "gain in dB"
+        string voice_model_path "RVC/TTS model path"
+        float formant_shift "formant frequency adjustment"
+        int whisper_mode "0 or 1"
+        float reverb_wetness "reverb blend 0.0 - 1.0"
+        datetime created_at
+    }
+
+    SPEECH_MODULATION_LOGS {
+        string log_id PK
+        string message_id FK
+        string profile_id FK
+        string input_audio_path
+        string output_audio_path
+        int modulation_duration_ms
+        string additional_metadata "JSON extra metadata"
+        datetime created_at
+    }
+```
+
+---
+
+## User Review Required
+
+Please review the following core features and schema decisions designed for your AI Companion:
+
+1. **Storage of Audio Files**:
+   - The database supports both **file paths** (`audio_path` referencing `.wav` or `.mp3` files on disk) and **binary blobs** (`audio_blob` storing raw audio inside the database itself).
+   - *Recommendation*: For best performance, we recommend storing larger files on disk and saving their file paths in the database to prevent database bloat, while using the `audio_blob` only for small voice snippets.
+2. **Speech-to-Speech Modulation Parameters**:
+   - We have included fields for real-time speech manipulation (Pitch Shift, Speed Rate, Volume Gain, Formant Shift, Reverb, Whisper Mode, and a path for Neural/RVC models). Let us know if you have specific voice cloning or modulation libraries in mind (e.g., PyTorch, SoX, RVC, Coqui TTS) so we can tailor the parameters even further.
+3. **Database Selection**:
+   - We are using **SQLite** via Python's native `sqlite3` driver. This requires zero external server setup, runs locally out of the box, is highly performant, and stores all data in a single `.db` file in your workspace.
+
+---
+
+## Open Questions
+
+> [!NOTE]
+> There are currently no blockages. We have designed this in a modular way so that it can easily plug into any Python AI agent pipeline. If you have any specific requirements for additional fields, please mention them in your feedback!
+
+---
+
+## Proposed Changes
+
+We will create a clean database module inside `c:\Users\yashu\omni\`:
+
+### AI Companion Database Module
+
+#### [NEW] [schema.sql](file:///c:/Users/yashu/omni/schema.sql)
+Creates the SQLite schema containing clean table layouts, foreign keys, constraints, and indexes for fast data fetching.
+
+#### [NEW] [db_manager.py](file:///c:/Users/yashu/omni/db_manager.py)
+A Python wrapper class providing standard CRUD operations, session management, and voice profile configuration:
+- `create_session(companion_name, summary=None)`
+- `add_message(session_id, sender, text_content, audio_path=None, audio_blob=None, latency_ms=0)`
+- `fetch_session_history(session_id)`
+- `search_messages(search_query)`
+- `create_voice_profile(name, pitch_shift, speed_rate, ...)`
+- `fetch_voice_profile(name_or_id)`
+- `log_speech_modulation(message_id, profile_id, input_audio_path, output_audio_path, duration_ms)`
+
+#### [NEW] [demo.py](file:///c:/Users/yashu/omni/demo.py)
+An interactive and premium command-line demonstration showing the system in action:
+1. Initializing the database.
+2. Creating voice profiles (e.g., a "Deep Robotic Voice" and a "Cheerful Assistant").
+3. Starting a conversation session.
+4. Adding user questions and simulated modulated companion speech responses.
+5. Fetching the message logs and demonstrating how speech modulation metrics are logged and retrieved.
+6. Printing a beautiful summary table of the session.
+
+---
+
+## Verification Plan
+
+### Automated Tests
+- We will execute the `demo.py` script and verify that it creates `companion.db`, inserts all data successfully, runs all fetch queries, and executes without any SQL or Python constraint violations.
+- Run command:
+  ```powershell
+  python demo.py
+  ```
+
+### Manual Verification
+- We will inspect the generated `companion.db` file and print sample queries to verify that:
+  - Messages are accurately associated with Sessions.
+  - Foreign key constraints (e.g., message session checking) are fully enforced.
+  - Text search and speech modulation parameter retrieval work correctly.

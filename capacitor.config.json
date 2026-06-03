@@ -1,0 +1,9 @@
+{
+  "appId": "com.ommnitech.roxy",
+  "appName": "Roxy AI",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  }
+}

@@ -1,0 +1,24 @@
+node_modules/
+dist/
+coverage/
+.DS_Store
+*.log
+.env
+!.env.example
+
+# SQLite databases
+*.db
+*.db-shm
+*.db-wal
+
+# Tauri build artifacts
+src-tauri/target/
+
+# Android build artifacts
+android/build/
+android/.gradle/
+android/app/build/
+android/local.properties
+
+# Nested repos / extra folders
+get-shit-done/
