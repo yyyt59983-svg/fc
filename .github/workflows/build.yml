@@ -120,8 +120,8 @@ jobs:
         run: |
           sdkmanager \
             "platform-tools" \
-            "platforms;android-36" \
-            "build-tools;36.0.0" || true
+            "platforms;android-35" \
+            "build-tools;35.0.0"
 
       - name: Install Node dependencies
         run: npm ci
