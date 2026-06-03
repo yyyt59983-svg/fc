@@ -4,7 +4,7 @@
   "identifier": "com.ommnitech.roxy",
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -12,6 +12,11 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "active": false
+    }
   },
   "app": {
     "windows": [
@@ -34,4 +39,3 @@
     "frontendDist": "../dist"
   }
 }
-

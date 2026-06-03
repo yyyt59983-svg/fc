@@ -7,10 +7,6 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
-env:
-  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-  VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-
 jobs:
   # ─────────────────────────────────────────
   # JOB 1: Build Windows EXE / MSI via Tauri
@@ -34,6 +30,11 @@ jobs:
         with:
           targets: x86_64-pc-windows-msvc
 
+      - name: Generate Cargo.lock
+        shell: pwsh
+        working-directory: src-tauri
+        run: cargo generate-lockfile
+
       - name: Cache Rust build artifacts
         uses: swatinem/rust-cache@v2
         with:
@@ -47,18 +48,25 @@ jobs:
         env:
           VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
-      - name: Copy index.old.html to index.html in dist
-        run: |
-          if (Test-Path "dist/index.old.html") {
-            Copy-Item "dist/index.old.html" "dist/index.html" -Force
-          }
+      - name: Ensure dist/index.html exists
         shell: pwsh
+        run: |
+          if (!(Test-Path "dist/index.html")) {
+            if (Test-Path "dist/index.old.html") {
+              Copy-Item "dist/index.old.html" "dist/index.html" -Force
+              Write-Host "Copied index.old.html to index.html"
+            } else {
+              Write-Host "WARNING: No index.html found in dist"
+            }
+          } else {
+            Write-Host "dist/index.html already exists"
+          }
 
-      - name: Build Tauri Desktop App
+      - name: Build Tauri Desktop App (Windows)
         run: npx tauri build
         env:
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - name: Upload Windows MSI installer
         uses: actions/upload-artifact@v4
@@ -103,6 +111,14 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | sdkmanager --licenses || true
 
+      - name: Install required Android SDK components
+        run: |
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0" \
+            "cmdline-tools;latest" || true
+
       - name: Install Node dependencies
         run: npm ci
 
@@ -111,14 +127,29 @@ jobs:
         env:
           VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
-      - name: Copy index.old.html to index.html in dist
+      - name: Ensure dist/index.html exists
         run: |
-          if [ -f "dist/index.old.html" ]; then
-            cp dist/index.old.html dist/index.html
+          if [ ! -f "dist/index.html" ]; then
+            if [ -f "dist/index.old.html" ]; then
+              cp dist/index.old.html dist/index.html
+              echo "Copied index.old.html → index.html"
+            else
+              echo "WARNING: No index.html in dist"
+            fi
+          else
+            echo "dist/index.html exists"
           fi
 
-      - name: Sync Capacitor Android platform
-        run: npx cap sync android
+      - name: Create android/local.properties
+        run: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+          cat android/local.properties
+
+      - name: Sync Capacitor assets to Android
+        run: npx cap copy android
+        env:
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
@@ -129,6 +160,7 @@ jobs:
           ./gradlew assembleDebug --no-daemon --stacktrace
         env:
           ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
 
       - name: Upload Android Debug APK
         uses: actions/upload-artifact@v4
