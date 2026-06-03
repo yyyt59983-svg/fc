@@ -145,8 +145,8 @@ jobs:
           echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
           cat android/local.properties
 
-      - name: Sync Capacitor assets to Android
-        run: npx cap copy android
+      - name: Sync Capacitor to Android (generates capacitor-cordova-android-plugins)
+        run: npx cap sync android
         env:
           ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
           ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
