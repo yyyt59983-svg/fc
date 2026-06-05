@@ -26,6 +26,18 @@ export function getWsUrl(): string {
   const customUrl = localStorage.getItem("ROXY_WS_URL") || localStorage.getItem("NIDHI_WS_URL");
   if (customUrl) return customUrl.replace(/\/$/, "");
 
+  // If a custom API URL is set but no custom WS URL, derive it dynamically
+  const customApiUrl = localStorage.getItem("ROXY_API_URL") || localStorage.getItem("NIDHI_API_URL");
+  if (customApiUrl) {
+    try {
+      const url = new URL(customApiUrl);
+      const protocol = url.protocol === "https:" ? "wss:" : "ws:";
+      return `${protocol}//${url.host}`;
+    } catch (e) {
+      // Fallback on URL parsing error
+    }
+  }
+
   const envUrl = import.meta.env.VITE_WS_URL;
   if (envUrl) return envUrl.replace(/\/$/, "");
 

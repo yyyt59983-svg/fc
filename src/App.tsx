@@ -335,6 +335,7 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [enteredName, setEnteredName] = useState("");
   const [selectedGender, setSelectedGender] = useState<"Male" | "Female" | "">("");
+  const [isServerConnected, setIsServerConnected] = useState<boolean | null>(null);
   
   // Custom HUD states
   const [activeTab, setActiveTab] = useState<"chat" | "sessions" | "voice" | "memory" | "logs" | "settings">("chat");
@@ -363,6 +364,18 @@ export default function App() {
     messagesRef.current = messages;
   }, [messages]);
 
+  const checkServerConnection = async (url: string): Promise<boolean> => {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const res = await fetch(url + "/api/sessions", { signal: controller.signal });
+      clearTimeout(timeoutId);
+      return res.status === 200 || res.ok;
+    } catch (e) {
+      return false;
+    }
+  };
+
   // Load Sessions, Voice Profiles, and User Profile on Startup
   const loadInitialData = async () => {
     // Auto-request microphone permission on startup to avoid blocks
@@ -375,6 +388,10 @@ export default function App() {
           console.warn("Microphone permission auto-request rejected/failed", err);
         });
     }
+
+    const currentApiUrl = getApiUrl();
+    const isOk = await checkServerConnection(currentApiUrl);
+    setIsServerConnected(isOk);
 
     try {
       const [sessList, vpList, profile] = await Promise.all([
@@ -453,24 +470,32 @@ export default function App() {
     loadSessionData();
   }, [sessionId]);
 
-  // Periodically poll relationship details (for responsive background engine sync)
+  // Periodically poll relationship details (for responsive background engine sync) and verify connection
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        const profile = await fetchUserProfile("lo");
-        if (profile) {
-          const localCached = localStorage.getItem("ROXY_LOCAL_PROFILE");
-          const cachedProfile = localCached ? JSON.parse(localCached) : null;
-          if (cachedProfile) {
-            profile.dynamic_preferences = {
-              ...cachedProfile.dynamic_preferences,
-              ...profile.dynamic_preferences
-            };
+        const currentApiUrl = getApiUrl();
+        const isOk = await checkServerConnection(currentApiUrl);
+        setIsServerConnected(isOk);
+
+        if (isOk) {
+          const profile = await fetchUserProfile("lo");
+          if (profile) {
+            const localCached = localStorage.getItem("ROXY_LOCAL_PROFILE");
+            const cachedProfile = localCached ? JSON.parse(localCached) : null;
+            if (cachedProfile) {
+              profile.dynamic_preferences = {
+                ...cachedProfile.dynamic_preferences,
+                ...profile.dynamic_preferences
+              };
+            }
+            setUserProfile(profile);
           }
-          setUserProfile(profile);
         }
-      } catch (e) {}
-    }, 7000);
+      } catch (e) {
+        console.warn("Periodic profile sync failed:", e);
+      }
+    }, 8000);
     return () => clearInterval(interval);
   }, []);
 
@@ -963,6 +988,52 @@ export default function App() {
               </div>
             </div>
 
+          {isServerConnected === false && (
+            <div className="relative z-10 p-3 bg-red-950/20 border border-red-500/20 rounded-2xl flex flex-col gap-2 text-left text-xs text-white/80">
+              <p className="font-semibold text-red-300">⚠️ Backend server unreachable</p>
+              <p className="text-[10px] text-white/50 leading-relaxed font-mono">
+                Expected at: {getApiUrl()}<br />
+                If running on a phone/emulator, please enter your computer's local IP address:
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={customApiUrl}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setCustomApiUrl(val);
+                    try {
+                      const url = new URL(val);
+                      const wsProto = url.protocol === "https:" ? "wss:" : "ws:";
+                      setCustomWsUrl(`${wsProto}//${url.host}`);
+                    } catch (err) {}
+                  }}
+                  placeholder="e.g. http://192.168.1.100:3000"
+                  className="flex-1 bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-[11px] font-mono text-white focus:outline-none focus:border-red-500/40"
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (customApiUrl.trim()) {
+                      localStorage.setItem("ROXY_API_URL", customApiUrl.trim());
+                      if (customWsUrl.trim()) {
+                        localStorage.setItem("ROXY_WS_URL", customWsUrl.trim());
+                      }
+                      const ok = await checkServerConnection(customApiUrl.trim());
+                      setIsServerConnected(ok);
+                      if (ok) {
+                        loadInitialData();
+                      }
+                    }
+                  }}
+                  className="px-3 py-1 bg-red-900/40 border border-red-800 text-[10px] font-mono rounded-lg hover:bg-red-800/60 cursor-pointer"
+                >
+                  Retry
+                </button>
+              </div>
+            </div>
+          )}
+
             <button
               id="onboarding-submit-btn"
               type="button"
@@ -1139,6 +1210,30 @@ export default function App() {
         </div>
         
         <div className="flex items-center gap-2">
+          {/* Server Status Indicator */}
+          {isServerConnected === false && (
+            <button
+              onClick={() => {
+                setActiveTab("settings");
+                setShowHistory(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1 bg-red-950/40 border border-red-500/30 rounded-full text-xs font-mono text-red-400 hover:bg-red-900/50 transition-colors shadow-[0_0_15px_rgba(239,68,68,0.2)] cursor-pointer"
+              title="Server Offline. Click to configure Connection Settings."
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
+              <span>Offline</span>
+            </button>
+          )}
+          {isServerConnected === true && (
+            <div 
+              className="hidden md:flex items-center gap-1.5 px-3 py-1 bg-green-950/20 border border-green-500/20 rounded-full text-xs font-mono text-green-400"
+              title="Connected to server"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+              <span>Online</span>
+            </div>
+          )}
+
           {/* Active Voice Indicator */}
           <div className={`${activeCodeDetails !== null ? "hidden" : "hidden md:flex"} items-center gap-1.5 px-3 py-1 bg-white/5 border border-white/10 rounded-full text-xs font-mono text-white/70`}>
             <Sliders size={12} className="text-violet-400" />
