@@ -394,11 +394,27 @@ export default function App() {
         setVoiceProfiles(vpList);
       }
       
-      setUserProfile(profile);
-      
-      // If name or gender is not saved in SQLite, prompt onboarding welcome modal
-      const isNameSaved = profile?.dynamic_preferences?.name;
-      const isGenderSaved = profile?.dynamic_preferences?.gender;
+      // Load local cached profile as fallback/offline store
+      const localCached = localStorage.getItem("ROXY_LOCAL_PROFILE");
+      const cachedProfile = localCached ? JSON.parse(localCached) : null;
+
+      let mergedProfile = profile;
+      if (!mergedProfile && cachedProfile) {
+        mergedProfile = cachedProfile;
+      } else if (mergedProfile && cachedProfile) {
+        mergedProfile.dynamic_preferences = {
+          ...cachedProfile.dynamic_preferences,
+          ...mergedProfile.dynamic_preferences
+        };
+      }
+
+      if (mergedProfile) {
+        setUserProfile(mergedProfile);
+      }
+
+      // Prompt onboarding only if name and gender are both missing
+      const isNameSaved = mergedProfile?.dynamic_preferences?.name;
+      const isGenderSaved = mergedProfile?.dynamic_preferences?.gender;
       if (!isNameSaved || !isGenderSaved) {
         setShowOnboarding(true);
       }
@@ -442,7 +458,17 @@ export default function App() {
     const interval = setInterval(async () => {
       try {
         const profile = await fetchUserProfile("lo");
-        setUserProfile(profile);
+        if (profile) {
+          const localCached = localStorage.getItem("ROXY_LOCAL_PROFILE");
+          const cachedProfile = localCached ? JSON.parse(localCached) : null;
+          if (cachedProfile) {
+            profile.dynamic_preferences = {
+              ...cachedProfile.dynamic_preferences,
+              ...profile.dynamic_preferences
+            };
+          }
+          setUserProfile(profile);
+        }
       } catch (e) {}
     }, 7000);
     return () => clearInterval(interval);
@@ -836,27 +862,41 @@ export default function App() {
       return;
     }
     
+    const updatedPrefs = {
+      ...(userProfile?.dynamic_preferences || {}),
+      name: enteredName.trim(),
+      gender: selectedGender
+    };
+    
+    const fallbackProfile = {
+      username: "lo",
+      relationship_score: userProfile?.relationship_score || 5.0,
+      dynamic_preferences: updatedPrefs
+    };
+
+    // Optimistically save profile locally and dismiss welcome modal so the button NEVER freezes/gets stuck
+    setUserProfile(fallbackProfile);
+    localStorage.setItem("ROXY_LOCAL_PROFILE", JSON.stringify(fallbackProfile));
+    setShowOnboarding(false);
+    
     try {
       const res = await fetch(getApiUrl() + "/api/user-profiles", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username: "lo",
-          preferences: {
-            name: enteredName.trim(),
-            gender: selectedGender
-          }
+          preferences: updatedPrefs
         })
       });
       if (res.ok) {
         const updatedProfile = await res.json();
         setUserProfile(updatedProfile);
-        setShowOnboarding(false);
+        localStorage.setItem("ROXY_LOCAL_PROFILE", JSON.stringify(updatedProfile));
       } else {
-        console.error("Failed to save onboarding profile");
+        console.warn("Failed to sync profile with server database, using offline storage fallback.");
       }
     } catch (e) {
-      console.error("Error saving profile during onboarding:", e);
+      console.warn("Error syncing profile with server database, using offline storage fallback:", e);
     }
   };
 
@@ -1850,23 +1890,27 @@ export default function App() {
                           value={userProfile?.dynamic_preferences?.name || ""}
                           onChange={async (e) => {
                             const newName = e.target.value;
-                            setUserProfile((prev: any) => ({
-                              ...prev,
+                            const updated = {
+                              ...userProfile,
                               dynamic_preferences: {
-                                ...prev?.dynamic_preferences,
+                                ...userProfile?.dynamic_preferences,
                                 name: newName
                               }
-                            }));
-                            await fetch(getApiUrl() + "/api/user-profiles", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                username: "lo",
-                                preferences: {
-                                  name: newName
-                                }
-                              })
-                            });
+                            };
+                            setUserProfile(updated);
+                            localStorage.setItem("ROXY_LOCAL_PROFILE", JSON.stringify(updated));
+                            try {
+                              await fetch(getApiUrl() + "/api/user-profiles", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  username: "lo",
+                                  preferences: {
+                                    name: newName
+                                  }
+                                })
+                              });
+                            } catch (err) {}
                           }}
                           className="w-full bg-[#050508]/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-violet-500/50 transition-colors font-sans"
                         />
@@ -1878,23 +1922,27 @@ export default function App() {
                           <button
                             type="button"
                             onClick={async () => {
-                              setUserProfile((prev: any) => ({
-                                ...prev,
+                              const updated = {
+                                ...userProfile,
                                 dynamic_preferences: {
-                                  ...prev?.dynamic_preferences,
+                                  ...userProfile?.dynamic_preferences,
                                   gender: "Male"
                                 }
-                              }));
-                              await fetch(getApiUrl() + "/api/user-profiles", {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({
-                                  username: "lo",
-                                  preferences: {
-                                    gender: "Male"
-                                  }
-                                })
-                              });
+                              };
+                              setUserProfile(updated);
+                              localStorage.setItem("ROXY_LOCAL_PROFILE", JSON.stringify(updated));
+                              try {
+                                await fetch(getApiUrl() + "/api/user-profiles", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    username: "lo",
+                                    preferences: {
+                                      gender: "Male"
+                                    }
+                                  })
+                                });
+                              } catch (err) {}
                             }}
                             className={`py-2 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
                               userProfile?.dynamic_preferences?.gender === "Male"
@@ -1907,23 +1955,27 @@ export default function App() {
                           <button
                             type="button"
                             onClick={async () => {
-                              setUserProfile((prev: any) => ({
-                                ...prev,
+                              const updated = {
+                                ...userProfile,
                                 dynamic_preferences: {
-                                  ...prev?.dynamic_preferences,
+                                  ...userProfile?.dynamic_preferences,
                                   gender: "Female"
                                 }
-                              }));
-                              await fetch(getApiUrl() + "/api/user-profiles", {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({
-                                  username: "lo",
-                                  preferences: {
-                                    gender: "Female"
-                                  }
-                                })
-                              });
+                              };
+                              setUserProfile(updated);
+                              localStorage.setItem("ROXY_LOCAL_PROFILE", JSON.stringify(updated));
+                              try {
+                                await fetch(getApiUrl() + "/api/user-profiles", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    username: "lo",
+                                    preferences: {
+                                      gender: "Female"
+                                    }
+                                  })
+                                });
+                              } catch (err) {}
                             }}
                             className={`py-2 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
                               userProfile?.dynamic_preferences?.gender === "Female"
