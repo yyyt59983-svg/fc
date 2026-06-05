@@ -336,6 +336,10 @@ export default function App() {
   const [enteredName, setEnteredName] = useState("");
   const [selectedGender, setSelectedGender] = useState<"Male" | "Female" | "">("");
   const [isServerConnected, setIsServerConnected] = useState<boolean | null>(null);
+  const [showAndroidSetup, setShowAndroidSetup] = useState(false);
+  const [androidSetupUrl, setAndroidSetupUrl] = useState("");
+  const [androidSetupError, setAndroidSetupError] = useState("");
+  const [androidSetupTesting, setAndroidSetupTesting] = useState(false);
   
   // Custom HUD states
   const [activeTab, setActiveTab] = useState<"chat" | "sessions" | "voice" | "memory" | "logs" | "settings">("chat");
@@ -436,12 +440,33 @@ export default function App() {
         setShowOnboarding(true);
       }
     } catch (e) {
-      console.error("Error loading seed database records", e);
+      // Server unreachable - still show the UI, just without server data
+      console.warn("Server unreachable or error loading data - app running in offline mode", e);
+      // Show onboarding from local cache if available
+      const localCached = localStorage.getItem("ROXY_LOCAL_PROFILE");
+      const cachedProfile = localCached ? JSON.parse(localCached) : null;
+      if (cachedProfile) {
+        setUserProfile(cachedProfile);
+        const isNameSaved = cachedProfile?.dynamic_preferences?.name;
+        const isGenderSaved = cachedProfile?.dynamic_preferences?.gender;
+        if (!isNameSaved || !isGenderSaved) {
+          setShowOnboarding(true);
+        }
+      } else {
+        setShowOnboarding(true);
+      }
     }
   };
 
   useEffect(() => {
-    loadInitialData();
+    // On Android, if no custom server URL saved, show setup screen first
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    const hasCustomUrl = !!localStorage.getItem("ROXY_API_URL") || !!localStorage.getItem("NIDHI_API_URL");
+    if (isAndroid && !hasCustomUrl) {
+      setShowAndroidSetup(true);
+    } else {
+      loadInitialData();
+    }
   }, []);
 
   // Reload history, memories, and audit stats whenever sessionId changes
@@ -927,6 +952,95 @@ export default function App() {
 
   return (
     <div className="h-[100dvh] w-screen bg-[#050508] text-white flex flex-row font-sans relative overflow-hidden m-0 p-0">
+      {/* Android Server Setup Screen - Shows FIRST on Android if no server configured */}
+      {showAndroidSetup && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#020205] pointer-events-auto">
+          <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] bg-violet-900/20 blur-[120px] rounded-full pointer-events-none" />
+          <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] bg-pink-900/20 blur-[120px] rounded-full pointer-events-none" />
+          
+          <div className="w-[90%] max-w-sm bg-[#090915]/95 border border-white/10 rounded-3xl p-8 shadow-[0_0_60px_rgba(139,92,246,0.3)] flex flex-col gap-6 relative overflow-hidden text-center">
+            {/* Icon */}
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-violet-600 to-pink-500 flex items-center justify-center shadow-[0_0_25px_rgba(139,92,246,0.5)]">
+                <span className="text-3xl">📡</span>
+              </div>
+              <h2 className="text-xl font-serif font-bold text-white">Connect to Roxy</h2>
+              <p className="text-xs text-white/50 leading-relaxed">
+                Enter your computer's local network IP address to connect Roxy on this phone.
+              </p>
+            </div>
+
+            {/* Instructions */}
+            <div className="bg-white/5 border border-white/5 rounded-2xl p-4 text-left space-y-2">
+              <p className="text-[10px] font-mono text-white/60 leading-relaxed">
+                <span className="text-violet-400 font-bold">How to find your IP:</span><br/>
+                1. On Windows: Press Win+R, type <span className="text-pink-400">cmd</span>, run <span className="text-pink-400">ipconfig</span><br/>
+                2. Find "IPv4 Address" under your WiFi adapter<br/>
+                3. Enter it below as: <span className="text-green-400">http://192.168.x.x:3000</span><br/>
+                4. Make sure Roxy server is running on your PC
+              </p>
+            </div>
+
+            {/* IP Input */}
+            <div className="flex flex-col gap-2">
+              <input
+                type="text"
+                value={androidSetupUrl}
+                onChange={(e) => {
+                  setAndroidSetupUrl(e.target.value);
+                  setAndroidSetupError("");
+                }}
+                placeholder="http://192.168.1.100:3000"
+                className="w-full bg-white/5 border border-white/10 focus:border-violet-500/50 rounded-xl px-4 py-3 text-white placeholder-white/30 text-sm focus:outline-none transition-all font-mono"
+                autoCapitalize="none"
+                autoCorrect="off"
+              />
+              {androidSetupError && (
+                <p className="text-[10px] text-red-400 font-mono text-left">⚠️ {androidSetupError}</p>
+              )}
+            </div>
+
+            {/* Connect Button */}
+            <button
+              type="button"
+              disabled={androidSetupTesting}
+              onClick={async () => {
+                const url = androidSetupUrl.trim();
+                if (!url) {
+                  setAndroidSetupError("Please enter your PC's IP address.");
+                  return;
+                }
+                const cleanUrl = url.startsWith("http") ? url : `http://${url}`;
+                setAndroidSetupTesting(true);
+                setAndroidSetupError("");
+                const ok = await checkServerConnection(cleanUrl);
+                setAndroidSetupTesting(false);
+                if (ok) {
+                  localStorage.setItem("ROXY_API_URL", cleanUrl);
+                  try {
+                    const wsUrl = new URL(cleanUrl);
+                    localStorage.setItem("ROXY_WS_URL", `ws://${wsUrl.host}`);
+                  } catch (e) {}
+                  setCustomApiUrl(cleanUrl);
+                  setIsServerConnected(true);
+                  setShowAndroidSetup(false);
+                  loadInitialData();
+                } else {
+                  setAndroidSetupError(`Cannot reach server at ${cleanUrl}. Check IP and ensure server is running.`);
+                }
+              }}
+              className="w-full py-3 bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-500 hover:to-pink-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(139,92,246,0.3)] transition-all cursor-pointer"
+            >
+              {androidSetupTesting ? "🔄 Testing connection..." : "Connect & Launch Roxy"}
+            </button>
+
+            <p className="text-[9px] text-white/20 font-mono">
+              Make sure your phone and PC are on the same Wi-Fi network.
+            </p>
+          </div>
+        </div>
+      )}
+
       {showOnboarding && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#020205]/85 backdrop-blur-md pointer-events-auto">
           <div className="w-[90%] max-w-md bg-[#090915]/95 border border-white/10 rounded-3xl p-8 shadow-[0_0_50px_rgba(139,92,246,0.25)] flex flex-col gap-6 relative overflow-hidden text-center">
