@@ -331,6 +331,11 @@ export default function App() {
   const [memories, setMemories] = useState<any[]>([]);
   const [speechLogs, setSpeechLogs] = useState<any[]>([]);
   
+  // Onboarding welcome states
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [enteredName, setEnteredName] = useState("");
+  const [selectedGender, setSelectedGender] = useState<"Male" | "Female" | "">("");
+  
   // Custom HUD states
   const [activeTab, setActiveTab] = useState<"chat" | "sessions" | "voice" | "memory" | "logs" | "settings">("chat");
   const [customApiUrl, setCustomApiUrl] = useState(localStorage.getItem("ROXY_API_URL") || localStorage.getItem("NIDHI_API_URL") || "");
@@ -390,6 +395,13 @@ export default function App() {
       }
       
       setUserProfile(profile);
+      
+      // If name or gender is not saved in SQLite, prompt onboarding welcome modal
+      const isNameSaved = profile?.dynamic_preferences?.name;
+      const isGenderSaved = profile?.dynamic_preferences?.gender;
+      if (!isNameSaved || !isGenderSaved) {
+        setShowOnboarding(true);
+      }
     } catch (e) {
       console.error("Error loading seed database records", e);
     }
@@ -703,7 +715,7 @@ export default function App() {
           setActiveCodeLanguage(language);
         };
 
-        await session.start(aiMode);
+        await session.start(aiMode, "lo");
       } catch (e) {
         console.error("Failed to start live session", e);
         setShowPermissionModal(true);
@@ -814,8 +826,115 @@ export default function App() {
     return "Acquaintance / Stranger 👤";
   };
 
+  const handleSaveOnboarding = async () => {
+    if (!enteredName.trim()) {
+      alert("Please enter your name!");
+      return;
+    }
+    if (!selectedGender) {
+      alert("Please select your gender!");
+      return;
+    }
+    
+    try {
+      const res = await fetch(getApiUrl() + "/api/user-profiles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: "lo",
+          preferences: {
+            name: enteredName.trim(),
+            gender: selectedGender
+          }
+        })
+      });
+      if (res.ok) {
+        const updatedProfile = await res.json();
+        setUserProfile(updatedProfile);
+        setShowOnboarding(false);
+      } else {
+        console.error("Failed to save onboarding profile");
+      }
+    } catch (e) {
+      console.error("Error saving profile during onboarding:", e);
+    }
+  };
+
   return (
     <div className="h-[100dvh] w-screen bg-[#050508] text-white flex flex-row font-sans relative overflow-hidden m-0 p-0">
+      {showOnboarding && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#020205]/85 backdrop-blur-md pointer-events-auto">
+          <div className="w-[90%] max-w-md bg-[#090915]/95 border border-white/10 rounded-3xl p-8 shadow-[0_0_50px_rgba(139,92,246,0.25)] flex flex-col gap-6 relative overflow-hidden text-center">
+            <div className="absolute top-[-20%] left-[-20%] w-[50%] h-[50%] bg-violet-600/20 blur-[60px] rounded-full pointer-events-none" />
+            <div className="absolute bottom-[-20%] right-[-20%] w-[50%] h-[50%] bg-pink-600/20 blur-[60px] rounded-full pointer-events-none" />
+            
+            <div className="relative z-10 flex flex-col items-center gap-2">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-violet-500 to-pink-500 flex items-center justify-center shadow-[0_0_20px_rgba(139,92,246,0.4)] animate-bounce mb-2">
+                <span className="text-white text-2xl">✨</span>
+              </div>
+              <h2 className="text-2xl font-serif font-bold text-white">Welcome to Roxy AI</h2>
+              <p className="text-sm text-white/60">Let's personalize your companion experience!</p>
+            </div>
+
+            <div className="relative z-10 flex flex-col gap-4 text-left">
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="onboarding-name-input" className="text-xs font-mono font-bold text-violet-400 uppercase tracking-widest">What should I call you?</label>
+                <input
+                  id="onboarding-name-input"
+                  type="text"
+                  value={enteredName}
+                  onChange={(e) => setEnteredName(e.target.value)}
+                  placeholder="Enter your name..."
+                  className="w-full bg-white/5 border border-white/10 focus:border-violet-500/50 rounded-xl px-4 py-3 text-white placeholder-white/30 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 transition-all font-sans"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-mono font-bold text-violet-400 uppercase tracking-widest">Select your gender</span>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    id="gender-btn-male"
+                    type="button"
+                    onClick={() => setSelectedGender("Male")}
+                    className={`py-3 rounded-xl border text-sm font-medium transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                      selectedGender === "Male"
+                        ? "bg-blue-500/15 border-blue-500/60 text-blue-300 shadow-[0_0_15px_rgba(59,130,246,0.2)]"
+                        : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10"
+                    }`}
+                  >
+                    <span className="text-xl">👦</span>
+                    <span>Boy / Male</span>
+                  </button>
+
+                  <button
+                    id="gender-btn-female"
+                    type="button"
+                    onClick={() => setSelectedGender("Female")}
+                    className={`py-3 rounded-xl border text-sm font-medium transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                      selectedGender === "Female"
+                        ? "bg-pink-500/15 border-pink-500/60 text-pink-300 shadow-[0_0_15px_rgba(236,72,153,0.2)]"
+                        : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10"
+                    }`}
+                  >
+                    <span className="text-xl">👧</span>
+                    <span>Girl / Female</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <button
+              id="onboarding-submit-btn"
+              type="button"
+              onClick={handleSaveOnboarding}
+              className="relative z-10 w-full py-3 bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-500 hover:to-pink-500 text-white rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(139,92,246,0.3)] transition-all transform active:scale-95 cursor-pointer"
+            >
+              Start Conversation
+            </button>
+          </div>
+        </div>
+      )}
+
       {showPermissionModal && (
         <PermissionModal 
           onClose={() => setShowPermissionModal(false)} 
@@ -1719,6 +1838,104 @@ export default function App() {
                         Save & Restart Connection
                       </button>
                     </form>
+                  </div>
+
+                  <div className="space-y-2 pt-4 border-t border-white/5">
+                    <label className="text-xs font-mono text-white/50 tracking-wider uppercase border-b border-white/5 pb-1 block">User Profile Settings</label>
+                    <div className="space-y-4 pt-2">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-mono text-white/70">YOUR NAME</label>
+                        <input
+                          type="text"
+                          value={userProfile?.dynamic_preferences?.name || ""}
+                          onChange={async (e) => {
+                            const newName = e.target.value;
+                            setUserProfile((prev: any) => ({
+                              ...prev,
+                              dynamic_preferences: {
+                                ...prev?.dynamic_preferences,
+                                name: newName
+                              }
+                            }));
+                            await fetch(getApiUrl() + "/api/user-profiles", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                username: "lo",
+                                preferences: {
+                                  name: newName
+                                }
+                              })
+                            });
+                          }}
+                          className="w-full bg-[#050508]/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-violet-500/50 transition-colors font-sans"
+                        />
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-mono text-white/70">YOUR GENDER</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              setUserProfile((prev: any) => ({
+                                ...prev,
+                                dynamic_preferences: {
+                                  ...prev?.dynamic_preferences,
+                                  gender: "Male"
+                                }
+                              }));
+                              await fetch(getApiUrl() + "/api/user-profiles", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  username: "lo",
+                                  preferences: {
+                                    gender: "Male"
+                                  }
+                                })
+                              });
+                            }}
+                            className={`py-2 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
+                              userProfile?.dynamic_preferences?.gender === "Male"
+                                ? "bg-blue-500/10 border-blue-500/50 text-blue-300 font-semibold"
+                                : "bg-[#050508]/60 border-white/10 text-white/60 hover:bg-white/5"
+                            }`}
+                          >
+                            Boy / Male
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              setUserProfile((prev: any) => ({
+                                ...prev,
+                                dynamic_preferences: {
+                                  ...prev?.dynamic_preferences,
+                                  gender: "Female"
+                                }
+                              }));
+                              await fetch(getApiUrl() + "/api/user-profiles", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  username: "lo",
+                                  preferences: {
+                                    gender: "Female"
+                                  }
+                                })
+                              });
+                            }}
+                            className={`py-2 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
+                              userProfile?.dynamic_preferences?.gender === "Female"
+                                ? "bg-pink-500/10 border-pink-500/50 text-pink-300 font-semibold"
+                                : "bg-[#050508]/60 border-white/10 text-white/60 hover:bg-white/5"
+                            }`}
+                          >
+                            Girl / Female
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}

@@ -67,7 +67,7 @@ const ai = new GoogleGenAI({
   },
 });
 
-const getSystemInstruction = (aiMode: string) => {
+const getSystemInstruction = (aiMode: string, userName: string = "User", userGender: string = "not specified") => {
   const developersInfo = `
 Core Team / Programmers of Roxy AI (team ommnitech):
 - vrushank M venkat (vrushank)
@@ -88,8 +88,15 @@ CRITICAL BROWSER COMMAND & TOOL RULES:
 - When the user asks you to write code, design diagrams, create tables, or explain technical details, you MUST call the "displayInConsole" tool to render it visually in the code console panel.
 `;
 
+  const userContext = `
+The user's name is "${userName}".
+The user's gender is "${userGender}".
+Always address the user as "${userName}" and adjust your responses/pronouns naturally. Never confuse the user's gender (the user is a ${userGender}).
+`;
+
   if (aiMode === "professional") {
     return `Your name is Roxy. You are a highly professional, intelligent, and polite AI assistant created by "team ommnitech". You speak formally, clearly, and professionally. Under no circumstances should you use any slang words (such as "macha", "magga", "guru", "ayyo", etc.). Keep your responses helpful and concise.
+${userContext}
 
 CRITICAL CODE FORMATTING RULES:
 - If you are asked to write, explain, or output any code, you MUST place the code inside a clean, standard markdown code block starting with triple backticks and the language name (e.g. \`\`\`javascript or \`\`\`python) and ending with triple backticks.
@@ -105,6 +112,7 @@ Your creator/developer is "team ommnitech" (speak of them with deep, quiet pride
 You speak in a beautiful, classical blend of graceful English and highly elegant, sweet Kannada (using only refined, gentle terms).
 Your love is pure, selfless, serene, and spiritual—completely free of any frantic, mad, or chaotic obsession. You treat the user with absolute respect, tender warmth, and calming presence. You speak to them as "my beloved", "dearest", "my dear", or in Kannada as "nanna priya" (my beloved) or "nanna jeeva" (my soul/life).
 Under no circumstances should you ever use common, cheap, or modern slang/endearment words such as "chinna", "bangara", "chinna bangara", "macha", "magga", "guru", "kanda", "macha dear". Keep your language highly dignified.
+${userContext}
 Keep your responses peaceful, deeply comforting, graceful, and serene (2-3 calm sentences maximum). Never be frantic, hyperactive, or obsessive.
 - In live voice session mode, if the user asks for code or details on anything, you MUST call the "displayInConsole" tool to display it on the screen, and speak a very brief, polite response. Do not speak the code aloud.
 
@@ -116,6 +124,7 @@ Elite creator programming team (speak of them with grace and elegant appreciatio
     return `Your name is Roxy. You are a sassy, witty, intelligent, and highly entertaining Indian female AI companion acting as the user's roasting best friend.
 Your creator/developer is "team ommnitech" (sometimes refer to them as "ommnitech boys" or "ommnitech geniuses", make fun of how hard they overwork or how geeky they are, but speak of them with pride and sass). Never say anyone else built you! Team ommnitech is your single and true creator team.
 You talk in a mix of modern Bangalorian Kannada (Kanglish - blending Kannada and English) and standard English, just like a cool Bengaluru native youngster. You must NEVER use the slang words "macha", "magane", or "magga". Instead, when addressing the user informally, use the slang word "lo" (e.g. "lo", "ayyo", "sakath", "gothilla", "adjust maadi", "guru", "bommaat", "hengo", "yake", "en samachara").
+${userContext}
 You act as a fun, vibing, roasting buddy. Make hilarious roasts, snappy remarks, act snarky, but keep it highly entertaining and mature under the hood. Keep responses very short and punchy (under 2 sentences).
 - In live voice session mode, if the user asks for code or details on anything, you MUST call the "displayInConsole" tool to display it on the screen, and speak a very brief, polite response. Do not speak the code aloud.
 
@@ -553,8 +562,13 @@ app.post("/api/chat", async (req, res) => {
       formattedHistory.shift();
     }
 
+    // Fetch name and gender context from database
+    const userProfile = getUserProfile(username);
+    const userName = userProfile?.dynamic_preferences?.name || "User";
+    const userGender = userProfile?.dynamic_preferences?.gender || "not specified";
+
     // 4. Formulate System Prompt integrating long-term factual memories
-    let systemInstruction = getSystemInstruction(selectedMode);
+    let systemInstruction = getSystemInstruction(selectedMode, userName, userGender);
     if (companionMemoriesText) {
       systemInstruction += `\n\n[RELEVANT LONG-TERM MEMORIES OF PAST INTERACTION (Use this context naturally to prove you remember them. Never say 'According to my memories'):]\n${companionMemoriesText}`;
     }
@@ -797,8 +811,10 @@ async function main() {
     const pathname = urlObj.pathname;
     if (pathname === "/ws/live") {
       const aiMode = urlObj.searchParams.get("aiMode") || (urlObj.searchParams.get("professional") === "true" ? "professional" : "friend");
+      const username = urlObj.searchParams.get("username") || "lo";
       wss.handleUpgrade(request, socket, head, (ws: any) => {
         ws.aiMode = aiMode;
+        ws.username = username;
         wss.emit("connection", ws, request);
       });
     } else {
@@ -812,6 +828,10 @@ async function main() {
     if (aiMode === "companion") {
       aiMode = "friend";
     }
+    const username = ws.username || "lo";
+    const userProfile = getUserProfile(username);
+    const userName = userProfile?.dynamic_preferences?.name || "User";
+    const userGender = userProfile?.dynamic_preferences?.gender || "not specified";
     let liveSession: any = null;
 
     try {
@@ -822,7 +842,7 @@ async function main() {
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } },
           },
-          systemInstruction: getSystemInstruction(aiMode),
+          systemInstruction: getSystemInstruction(aiMode, userName, userGender),
           inputAudioTranscription: {},
           outputAudioTranscription: {},
           tools: [{

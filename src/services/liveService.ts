@@ -21,7 +21,7 @@ export class LiveSessionManager {
 
   constructor() {}
 
-  async start(aiMode: string = "professional") {
+  async start(aiMode: string = "professional", username: string = "lo") {
     try {
       this.onStateChange("processing");
       
@@ -32,7 +32,7 @@ export class LiveSessionManager {
       this.nextPlayTime = this.playbackContext.currentTime;
 
       // Connect to our Server's WebSocket Gateway
-      const wsUrl = `${getWsUrl()}/ws/live?aiMode=${aiMode}`;
+      const wsUrl = `${getWsUrl()}/ws/live?aiMode=${aiMode}&username=${username}`;
       console.log("Connecting to Roxy server-side Live API bridge at:", wsUrl);
       this.ws = new WebSocket(wsUrl);
 
