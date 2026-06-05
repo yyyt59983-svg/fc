@@ -13,7 +13,7 @@ export function getApiUrl(): string {
     origin.startsWith("tauri://") || 
     origin.includes("tauri.localhost") || 
     origin.startsWith("capacitor://") || 
-    (origin.startsWith("https://localhost") && !origin.includes(":3000"))
+    ((origin.startsWith("http://localhost") || origin.startsWith("https://localhost")) && !origin.includes(":3000"))
   ) {
     return "http://localhost:3000";
   }
@@ -34,7 +34,7 @@ export function getWsUrl(): string {
     origin.startsWith("tauri://") || 
     origin.includes("tauri.localhost") || 
     origin.startsWith("capacitor://") || 
-    (origin.startsWith("https://localhost") && !origin.includes(":3000"))
+    ((origin.startsWith("http://localhost") || origin.startsWith("https://localhost")) && !origin.includes(":3000"))
   ) {
     return "ws://localhost:3000";
   }
