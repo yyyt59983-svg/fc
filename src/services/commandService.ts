@@ -53,7 +53,7 @@ export function processCommand(command: string): {
     const number = waMatch[1].replace(/\s+/g, "");
     const message = encodeURIComponent(waMatch[2].trim());
     return {
-      action: `Sending your message. Let's hope they reply, macha.`,
+      action: `Sending your message. Let's hope they reply, lo.`,
       url: `https://web.whatsapp.com/send?phone=${number}&text=${message}`,
       actionType: "open_url",
     };

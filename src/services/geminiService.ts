@@ -44,13 +44,13 @@ export async function getRoxyResponse(
 
     const data = await res.json();
     return {
-      text: data.text || "Ayyo macha, sumne enu heltidya? Try again later.",
+      text: data.text || "Ayyo lo, sumne enu heltidya? Try again later.",
       toolCall: data.toolCall
     };
   } catch (error) {
     console.error("getRoxyResponse client error:", error);
     return {
-      text: "Ayyo macha, some network error ansutte. Team ommnitech is probably fixing my brain. Try again in a bit!",
+      text: "Ayyo lo, some network error ansutte. Team ommnitech is probably fixing my brain. Try again in a bit!",
     };
   }
 }
@@ -150,7 +150,7 @@ export async function createVoiceProfile(profileData: any): Promise<any> {
 // USER PROFILES API SERVICE
 // =========================================================================
 
-export async function fetchUserProfile(username = "macha"): Promise<any> {
+export async function fetchUserProfile(username = "lo"): Promise<any> {
   try {
     const res = await fetch(getApiUrl() + `/api/user-profiles/${username}`);
     if (res.ok) return await res.json();

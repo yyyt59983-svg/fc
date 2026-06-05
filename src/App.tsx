@@ -47,6 +47,90 @@ import { playPCM } from "./utils/audioUtils";
 import { motion, AnimatePresence } from "motion/react";
 import { getApiUrl } from "./utils/config";
 
+const openLink = (url: string) => {
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  const isTauri = typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__ !== undefined;
+
+  if (isTauri) {
+    try {
+      (window as any).__TAURI_INTERNALS__.invoke("open_external_url", { url });
+    } catch (e) {
+      console.error("Tauri open_external_url failed", e);
+      window.open(url, "_blank");
+    }
+  } else if (isAndroid) {
+    window.open(url, "_system");
+  } else {
+    window.open(url, "_blank");
+  }
+};
+
+const renderTextWithLinks = (text: string) => {
+  if (!text) return "";
+  
+  const tokenRegex = /(\[[^\]]+\]\(https?:\/\/[^\s)]+\)|https?:\/\/[^\s<]+)/g;
+  const matches = [...text.matchAll(tokenRegex)];
+  
+  if (matches.length === 0) {
+    return text;
+  }
+  
+  const result: React.ReactNode[] = [];
+  let currentIdx = 0;
+  
+  matches.forEach((match, matchIdx) => {
+    const start = match.index!;
+    const matchedText = match[0];
+    
+    if (start > currentIdx) {
+      result.push(<span key={`text-${matchIdx}`}>{text.substring(currentIdx, start)}</span>);
+    }
+    
+    if (matchedText.startsWith("[")) {
+      const mdMatch = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/.exec(matchedText);
+      if (mdMatch) {
+        const linkText = mdMatch[1];
+        const linkUrl = mdMatch[2];
+        result.push(
+          <a
+            key={`link-${matchIdx}`}
+            href={linkUrl}
+            onClick={(e) => {
+              e.preventDefault();
+              openLink(linkUrl);
+            }}
+            className="text-pink-400 hover:text-pink-300 underline font-medium cursor-pointer"
+          >
+            {linkText}
+          </a>
+        );
+      }
+    } else {
+      result.push(
+        <a
+          key={`link-${matchIdx}`}
+          href={matchedText}
+          onClick={(e) => {
+            e.preventDefault();
+            openLink(matchedText);
+          }}
+          className="text-pink-400 hover:text-pink-300 underline font-medium cursor-pointer break-all"
+        >
+          {matchedText}
+        </a>
+      );
+    }
+    
+    currentIdx = start + matchedText.length;
+  });
+  
+  if (currentIdx < text.length) {
+    result.push(<span key="text-end">{text.substring(currentIdx)}</span>);
+  }
+  
+  return result;
+};
+
 // Helper to parse message text and isolate triple-backtick code blocks
 const parseMessageWithCodeBlocks = (text: string) => {
   if (!text) return [{ type: "text", content: "" }];
@@ -291,7 +375,7 @@ export default function App() {
       const [sessList, vpList, profile] = await Promise.all([
         fetchSessions(),
         fetchVoiceProfiles(),
-        fetchUserProfile("macha")
+        fetchUserProfile("lo")
       ]);
       
       if (sessList && sessList.length > 0) {
@@ -345,7 +429,7 @@ export default function App() {
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        const profile = await fetchUserProfile("macha");
+        const profile = await fetchUserProfile("lo");
         setUserProfile(profile);
       } catch (e) {}
     }, 7000);
@@ -460,14 +544,8 @@ export default function App() {
       }
       setAppState("idle");
     } else if (commandResult.actionType === "open_url") {
-      // Open immediately to bypass browser popup blocker
-      let win;
       if (commandResult.url) {
-        try {
-          win = window.open(commandResult.url, "_blank");
-        } catch (e) {
-          console.error("Direct popup open failed", e);
-        }
+        openLink(commandResult.url);
       }
 
       responseText = commandResult.action;
@@ -510,38 +588,17 @@ export default function App() {
               url = "https://" + url;
             }
             setTimeout(() => {
-              try {
-                const win = window.open(url, "_blank");
-                if (!win || win.closed || typeof win.closed === "undefined") {
-                  setActiveRedirectUrl(url);
-                }
-              } catch (e) {
-                setActiveRedirectUrl(url);
-              }
+              openLink(url);
             }, 1000);
           } else if (args.actionType === "spotify") {
             const url = `https://open.spotify.com/search/${encodeURIComponent(args.query)}`;
             setTimeout(() => {
-              try {
-                const win = window.open(url, "_blank");
-                if (!win || win.closed || typeof win.closed === "undefined") {
-                  setActiveRedirectUrl(url);
-                }
-              } catch (e) {
-                setActiveRedirectUrl(url);
-              }
+              openLink(url);
             }, 1000);
           } else if (args.actionType === "whatsapp") {
             const url = `https://web.whatsapp.com/send?phone=${args.target || ""}&text=${encodeURIComponent(args.query)}`;
             setTimeout(() => {
-              try {
-                const win = window.open(url, "_blank");
-                if (!win || win.closed || typeof win.closed === "undefined") {
-                  setActiveRedirectUrl(url);
-                }
-              } catch (e) {
-                setActiveRedirectUrl(url);
-              }
+              openLink(url);
             }, 1000);
           }
         } else if (name === "displayInConsole") {
@@ -561,7 +618,7 @@ export default function App() {
       setTimeout(async () => {
         const [mems, profile, logs] = await Promise.all([
           fetchMemories(sessionId),
-          fetchUserProfile("macha"),
+          fetchUserProfile("lo"),
           fetchSpeechLogs(sessionId)
         ]);
         setMemories(mems);
@@ -636,14 +693,7 @@ export default function App() {
             setMediaQuery(queryOrUrl);
           } else {
             setTimeout(() => {
-              try {
-                const win = window.open(queryOrUrl, "_blank");
-                if (!win || win.closed || typeof win.closed === "undefined") {
-                  setActiveRedirectUrl(queryOrUrl);
-                }
-              } catch (e) {
-                setActiveRedirectUrl(queryOrUrl);
-              }
+              openLink(queryOrUrl);
             }, 1000);
           }
         };
@@ -893,7 +943,7 @@ export default function App() {
 
                 {/* Code Block */}
                 <div className="flex-1 pl-4">
-                  <pre className="font-mono text-[11px] leading-relaxed text-white/90 whitespace-pre">
+                  <pre className="font-mono text-[11px] leading-relaxed text-white/90 whitespace-pre-wrap break-all">
                     <code 
                       dangerouslySetInnerHTML={{ 
                         __html: highlightCode(activeCodeDetails || "", activeCodeLanguage) 
@@ -1129,7 +1179,7 @@ export default function App() {
                   <div className="flex-1 overflow-y-auto space-y-4 pr-1">
                     {messages.length === 0 ? (
                       <div className="h-full flex flex-col items-center justify-center text-white/40 text-sm italic gap-2 text-center pt-8">
-                        <p>Macha, no chats in this room.</p>
+                        <p>Lo, no chats in this room.</p>
                         <p className="text-xs">Type a msg or start a voice session to begin!</p>
                       </div>
                     ) : (
@@ -1169,7 +1219,7 @@ export default function App() {
                                   </div>
                                 );
                               }
-                              return <span key={pIdx} className="whitespace-pre-wrap">{part.content}</span>;
+                              return <span key={pIdx} className="whitespace-pre-wrap">{renderTextWithLinks(part.content)}</span>;
                             })}
                           </div>
                           <div className="flex items-center gap-2 mt-1">
