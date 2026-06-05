@@ -7,8 +7,19 @@ export function getApiUrl(): string {
   const envUrl = import.meta.env.VITE_API_URL;
   if (envUrl) return envUrl.replace(/\/$/, "");
 
-  // 3. Fallback to current window host
-  return window.location.origin;
+  // 3. Check if we are running in Tauri or Capacitor
+  const origin = window.location.origin;
+  if (
+    origin.startsWith("tauri://") || 
+    origin.includes("tauri.localhost") || 
+    origin.startsWith("capacitor://") || 
+    (origin.startsWith("https://localhost") && !origin.includes(":3000"))
+  ) {
+    return "http://localhost:3000";
+  }
+
+  // 4. Fallback to current window host
+  return origin;
 }
 
 export function getWsUrl(): string {
@@ -17,6 +28,16 @@ export function getWsUrl(): string {
 
   const envUrl = import.meta.env.VITE_WS_URL;
   if (envUrl) return envUrl.replace(/\/$/, "");
+
+  const origin = window.location.origin;
+  if (
+    origin.startsWith("tauri://") || 
+    origin.includes("tauri.localhost") || 
+    origin.startsWith("capacitor://") || 
+    (origin.startsWith("https://localhost") && !origin.includes(":3000"))
+  ) {
+    return "ws://localhost:3000";
+  }
 
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${window.location.host}`;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Maximize2, Minimize2, GripHorizontal, Loader2, Youtube } from 'lucide-react';
+import { getApiUrl } from '../utils/config';
 
 interface MiniPlayerProps {
   query: string;
@@ -29,7 +30,7 @@ export default function MiniPlayer({ query, onClose }: MiniPlayerProps) {
       setLoading(true);
       setError(false);
       try {
-        const res = await fetch(`/api/get-song?q=${encodeURIComponent(query)}&t=${Date.now()}`, {
+        const res = await fetch(getApiUrl() + `/api/get-song?q=${encodeURIComponent(query)}&t=${Date.now()}`, {
           cache: "no-store"
         });
         if (!res.ok) throw new Error(`Server returned status: ${res.status}`);
