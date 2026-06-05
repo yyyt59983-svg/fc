@@ -44,7 +44,7 @@ jobs:
         run: npm ci
 
       - name: Build Vite frontend
-        run: npx vite build
+        run: npm run build
         env:
           VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
@@ -72,14 +72,18 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: roxy-ai-windows-msi
-          path: src-tauri/target/release/bundle/msi/*.msi
+          path: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
           if-no-files-found: warn
 
       - name: Upload Windows NSIS EXE installer
         uses: actions/upload-artifact@v4
         with:
           name: roxy-ai-windows-exe
-          path: src-tauri/target/release/bundle/nsis/*.exe
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
           if-no-files-found: warn
 
   # ─────────────────────────────────────────
@@ -88,9 +92,6 @@ jobs:
   build-android:
     name: 📱 Build Android APK (Capacitor)
     runs-on: ubuntu-latest
-
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Checkout repository
@@ -109,25 +110,15 @@ jobs:
           java-version: '17'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
-          accept-android-sdk-licenses: false
-
-      - name: Accept Android SDK licenses
-        run: yes | sdkmanager --licenses || true
-
-      - name: Install required Android SDK components
-        run: |
-          sdkmanager \
-            "platform-tools" \
-            "platforms;android-35" \
-            "build-tools;35.0.0"
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
 
       - name: Install Node dependencies
         run: npm ci
 
       - name: Build Vite frontend
-        run: npx vite build
+        run: npm run build
         env:
           VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
@@ -146,15 +137,12 @@ jobs:
 
       - name: Create android/local.properties
         run: |
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           echo "Created local.properties:"
           cat android/local.properties
 
       - name: Sync Capacitor to Android
         run: npx cap sync android
-        env:
-          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
-          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
@@ -163,9 +151,6 @@ jobs:
         run: |
           cd android
           ./gradlew assembleDebug --no-daemon --stacktrace
-        env:
-          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
-          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
 
       - name: Upload Android Debug APK
         uses: actions/upload-artifact@v4
