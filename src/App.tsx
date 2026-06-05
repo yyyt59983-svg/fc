@@ -2016,121 +2016,195 @@ export default function App() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.4 }}
-              className="w-full max-w-4xl h-full flex flex-col justify-between items-center z-10 overflow-y-auto pr-1 pointer-events-auto scrollbar-hide"
+              className="w-full max-w-5xl h-full flex flex-col md:flex-row items-stretch gap-6 z-10 overflow-hidden pr-1 pointer-events-auto"
             >
-              {/* Hero Greeting Section */}
-              <div className="text-center mt-4 md:mt-8 space-y-2 select-none">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.1 }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-violet-500/10 border border-violet-500/20 rounded-full text-[10px] font-mono text-violet-300 uppercase tracking-widest"
-                >
-                  <Sparkles size={10} className="text-violet-400" />
-                  <span>Personal Cognitive Agent</span>
-                </motion.div>
-                
-                <h2 className="text-3xl md:text-5xl font-serif font-semibold tracking-wide text-white bg-clip-text">
-                  Hello, I am <span className="bg-gradient-to-r from-violet-400 via-pink-400 to-amber-300 bg-clip-text text-transparent">Roxy</span>
-                </h2>
-                
-                <p className="text-xs md:text-sm text-white/50 max-w-md mx-auto leading-relaxed">
-                  Your customized AI companion, technical supervisor, and semantic memory agent. How shall we collaborate today?
-                </p>
-              </div>
-
-              {/* Center Rest Orb Trigger */}
-              <div className="relative my-8 flex items-center justify-center">
-                {/* Rotating accent rings */}
-                <div className="absolute w-56 h-56 rounded-full border border-white/5 border-dashed animate-[spin_40s_linear_infinite]" />
-                <div className="absolute w-44 h-44 rounded-full border border-violet-500/5 animate-[spin_20s_linear_infinite_reverse]" />
-                
-                {/* Live Orb in Resting (Idle) State */}
-                <div 
-                  onClick={toggleListening}
-                  className="relative w-48 h-48 flex items-center justify-center cursor-pointer group pointer-events-auto"
-                >
-                  {/* Hover ripple rings */}
-                  <div className="absolute inset-0 rounded-full bg-violet-600/5 border border-violet-500/10 scale-95 group-hover:scale-110 opacity-0 group-hover:opacity-100 transition-all duration-500" />
-                  <div className="absolute inset-2 rounded-full bg-pink-600/5 border border-pink-500/10 scale-90 group-hover:scale-105 opacity-0 group-hover:opacity-100 transition-all duration-700" />
+              {/* Left Column: Previous Conversations Panel */}
+              <div className="w-full md:w-80 bg-white/5 border border-white/10 rounded-3xl p-5 flex flex-col justify-between overflow-hidden shrink-0 select-none">
+                <div className="flex flex-col gap-4 overflow-hidden h-full">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                    <span className="text-xs font-mono font-bold text-violet-400 uppercase tracking-widest">Rooms</span>
+                    <button 
+                      onClick={async () => {
+                        const name = prompt("Enter new session name/summary:");
+                        if (name && name.trim()) {
+                          const newSess = await createSession("Roxy", name.trim());
+                          if (newSess) {
+                            setSessions(prev => [newSess, ...prev]);
+                            setSessionId(newSess.session_id);
+                          }
+                        }
+                      }}
+                      className="p-1 rounded bg-violet-600/20 text-violet-400 border border-violet-500/20 hover:bg-violet-600/30 text-[10px] px-2 font-mono flex items-center gap-1 cursor-pointer animate-pulse"
+                    >
+                      <Plus size={10} /> New Room
+                    </button>
+                  </div>
                   
-                  <Visualizer state="idle" />
-
-                  {/* Floating click prompt */}
-                  <div className="absolute -bottom-1.5 bg-[#020206]/90 border border-white/10 px-3 py-1 rounded-full text-[9px] font-mono text-white/60 tracking-wider uppercase opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0 shadow-[0_4px_12px_rgba(0,0,0,0.5)] z-30">
-                    Click to Talk
+                  {/* Session List */}
+                  <div className="flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-hide">
+                    {sessions.map((sess) => (
+                      <div 
+                        key={sess.session_id}
+                        onClick={() => setSessionId(sess.session_id)}
+                        className={`p-3 rounded-xl border transition-all cursor-pointer relative group flex justify-between items-center ${
+                          sessionId === sess.session_id 
+                            ? "bg-violet-600/10 border-violet-500/40 shadow-[0_0_15px_rgba(139,92,246,0.15)]"
+                            : "bg-white/0 border-white/5 hover:bg-white/5 hover:border-white/10"
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0 pr-2 text-left">
+                          <span className="font-semibold text-xs text-white truncate block">
+                            {sess.summary || "Unnamed Chat Session"}
+                          </span>
+                          <span className="text-[9px] text-white/30 block font-mono mt-0.5">
+                            ID: {sess.session_id.substring(0, 10)}...
+                          </span>
+                        </div>
+                        {sessionId === sess.session_id ? (
+                          <div className="w-1.5 h-1.5 rounded-full bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.8)] shrink-0" />
+                        ) : (
+                          sess.session_id !== "sess_default" && (
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (confirm("Delete this session entirely?")) {
+                                  const success = await deleteSession(sess.session_id);
+                                  if (success) {
+                                    setSessions(prev => prev.filter(s => s.session_id !== sess.session_id));
+                                    if (sessionId === sess.session_id) {
+                                      setSessionId("sess_default");
+                                    }
+                                  }
+                                }
+                              }}
+                              className="p-1 rounded bg-red-950/20 text-red-400 border border-red-900/30 opacity-0 group-hover:opacity-100 hover:bg-red-900/20 transition-all cursor-pointer shrink-0"
+                            >
+                              <X size={10} />
+                            </button>
+                          )
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
 
-              {/* Premium Action Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full max-w-3xl mt-2 select-none">
-                {/* Card 1: Start Voice */}
-                <div 
-                  onClick={toggleListening}
-                  className="bg-white/5 hover:bg-white/10 border border-white/5 hover:border-violet-500/20 p-4 rounded-2xl flex flex-col gap-2.5 cursor-pointer transition-all duration-300 group shadow-lg"
-                >
-                  <div className="w-8 h-8 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 group-hover:scale-105 transition-transform">
-                    <Mic size={16} />
-                  </div>
-                  <div className="text-left">
-                    <span className="font-semibold text-xs text-white block group-hover:text-violet-300 transition-colors">Start Voice Chat</span>
-                    <span className="text-[10px] text-white/40 block mt-0.5 leading-normal">Engage in real-time verbal conversations.</span>
+              {/* Right Column: Visualizer & Actions */}
+              <div className="flex-1 flex flex-col justify-between items-center overflow-y-auto scrollbar-hide py-2">
+                {/* Hero Greeting Section */}
+                <div className="text-center mt-4 md:mt-8 space-y-2 select-none">
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.1 }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-violet-500/10 border border-violet-500/20 rounded-full text-[10px] font-mono text-violet-300 uppercase tracking-widest"
+                  >
+                    <Sparkles size={10} className="text-violet-400" />
+                    <span>Personal Cognitive Agent</span>
+                  </motion.div>
+                  
+                  <h2 className="text-3xl md:text-5xl font-serif font-semibold tracking-wide text-white bg-clip-text">
+                    Hello, I am <span className="bg-gradient-to-r from-violet-400 via-pink-400 to-amber-300 bg-clip-text text-transparent">Roxy</span>
+                  </h2>
+                  
+                  <p className="text-xs md:text-sm text-white/50 max-w-md mx-auto leading-relaxed">
+                    Your customized AI companion, technical supervisor, and semantic memory agent. How shall we collaborate today?
+                  </p>
+                </div>
+
+                {/* Center Rest Orb Trigger */}
+                <div className="relative my-8 flex items-center justify-center">
+                  {/* Rotating accent rings */}
+                  <div className="absolute w-56 h-56 rounded-full border border-white/5 border-dashed animate-[spin_40s_linear_infinite]" />
+                  <div className="absolute w-44 h-44 rounded-full border border-violet-500/5 animate-[spin_20s_linear_infinite_reverse]" />
+                  
+                  {/* Live Orb in Resting (Idle) State */}
+                  <div 
+                    onClick={toggleListening}
+                    className="relative w-48 h-48 flex items-center justify-center cursor-pointer group pointer-events-auto"
+                  >
+                    {/* Hover ripple rings */}
+                    <div className="absolute inset-0 rounded-full bg-violet-600/5 border border-violet-500/10 scale-95 group-hover:scale-110 opacity-0 group-hover:opacity-100 transition-all duration-500" />
+                    <div className="absolute inset-2 rounded-full bg-pink-600/5 border border-pink-500/10 scale-90 group-hover:scale-105 opacity-0 group-hover:opacity-100 transition-all duration-700" />
+                    
+                    <Visualizer state="idle" />
+
+                    {/* Floating click prompt */}
+                    <div className="absolute -bottom-1.5 bg-[#020206]/90 border border-white/10 px-3 py-1 rounded-full text-[9px] font-mono text-white/60 tracking-wider uppercase opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0 shadow-[0_4px_12px_rgba(0,0,0,0.5)] z-30">
+                      Click to Talk
+                    </div>
                   </div>
                 </div>
 
-                {/* Card 2: Code Console */}
-                <div 
-                  onClick={() => {
-                    if (activeCodeDetails === null) {
-                      setActiveCodeDetails(`// Welcome to Roxy Code Console\n// Generated code or technical data blocks will render here.\n\nconsole.log("System Status: Synchronized");`);
-                      setActiveCodeLanguage("javascript");
-                    } else {
-                      setActiveCodeDetails(null);
-                    }
-                  }}
-                  className="bg-white/5 hover:bg-white/10 border border-white/5 hover:border-pink-500/20 p-4 rounded-2xl flex flex-col gap-2.5 cursor-pointer transition-all duration-300 group shadow-lg"
-                >
-                  <div className="w-8 h-8 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400 group-hover:scale-105 transition-transform">
-                    <Keyboard size={16} />
+                {/* Premium Action Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full max-w-3xl mt-2 select-none">
+                  {/* Card 1: Start Voice */}
+                  <div 
+                    onClick={toggleListening}
+                    className="bg-white/5 hover:bg-white/10 border border-white/5 hover:border-violet-500/20 p-4 rounded-2xl flex flex-col gap-2.5 cursor-pointer transition-all duration-300 group shadow-lg"
+                  >
+                    <div className="w-8 h-8 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 group-hover:scale-105 transition-transform">
+                      <Mic size={16} />
+                    </div>
+                    <div className="text-left">
+                      <span className="font-semibold text-xs text-white block group-hover:text-violet-300 transition-colors">Start Voice Chat</span>
+                      <span className="text-[10px] text-white/40 block mt-0.5 leading-normal">Engage in real-time verbal conversations.</span>
+                    </div>
                   </div>
-                  <div className="text-left">
-                    <span className="font-semibold text-xs text-white block group-hover:text-pink-300 transition-colors">Developer Console</span>
-                    <span className="text-[10px] text-white/40 block mt-0.5 leading-normal">Inspect compiled scripts, code, and logs.</span>
-                  </div>
-                </div>
 
-                {/* Card 3: Memories */}
-                <div 
-                  onClick={() => {
-                    setShowHistory(true);
-                    setActiveTab("memory");
-                  }}
-                  className="bg-white/5 hover:bg-white/10 border border-white/5 hover:border-cyan-500/20 p-4 rounded-2xl flex flex-col gap-2.5 cursor-pointer transition-all duration-300 group shadow-lg"
-                >
-                  <div className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 group-hover:scale-105 transition-transform">
-                    <Database size={16} />
+                  {/* Card 2: Code Console */}
+                  <div 
+                    onClick={() => {
+                      if (activeCodeDetails === null) {
+                        setActiveCodeDetails(`// Welcome to Roxy Code Console\n// Generated code or technical data blocks will render here.\n\nconsole.log("System Status: Synchronized");`);
+                        setActiveCodeLanguage("javascript");
+                      } else {
+                        setActiveCodeDetails(null);
+                      }
+                    }}
+                    className="bg-white/5 hover:bg-white/10 border border-white/5 hover:border-pink-500/20 p-4 rounded-2xl flex flex-col gap-2.5 cursor-pointer transition-all duration-300 group shadow-lg"
+                  >
+                    <div className="w-8 h-8 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400 group-hover:scale-105 transition-transform">
+                      <Keyboard size={16} />
+                    </div>
+                    <div className="text-left">
+                      <span className="font-semibold text-xs text-white block group-hover:text-pink-300 transition-colors">Developer Console</span>
+                      <span className="text-[10px] text-white/40 block mt-0.5 leading-normal">Inspect compiled scripts, code, and logs.</span>
+                    </div>
                   </div>
-                  <div className="text-left">
-                    <span className="font-semibold text-xs text-white block group-hover:text-cyan-300 transition-colors">Memory Core</span>
-                    <span className="text-[10px] text-white/40 block mt-0.5 leading-normal">View RAG database facts learned about you.</span>
-                  </div>
-                </div>
 
-                {/* Card 4: Voice Tuner */}
-                <div 
-                  onClick={() => {
-                    setShowHistory(true);
-                    setActiveTab("voice");
-                  }}
-                  className="bg-white/5 hover:bg-white/10 border border-white/5 hover:border-yellow-500/20 p-4 rounded-2xl flex flex-col gap-2.5 cursor-pointer transition-all duration-300 group shadow-lg"
-                >
-                  <div className="w-8 h-8 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center text-yellow-400 group-hover:scale-105 transition-transform">
-                    <Sliders size={16} />
+                  {/* Card 3: Memories */}
+                  <div 
+                    onClick={() => {
+                      setShowHistory(true);
+                      setActiveTab("memory");
+                    }}
+                    className="bg-white/5 hover:bg-white/10 border border-white/5 hover:border-cyan-500/20 p-4 rounded-2xl flex flex-col gap-2.5 cursor-pointer transition-all duration-300 group shadow-lg"
+                  >
+                    <div className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 group-hover:scale-105 transition-transform">
+                      <Database size={16} />
+                    </div>
+                    <div className="text-left">
+                      <span className="font-semibold text-xs text-white block group-hover:text-cyan-300 transition-colors">Memory Core</span>
+                      <span className="text-[10px] text-white/40 block mt-0.5 leading-normal">View RAG database facts learned about you.</span>
+                    </div>
                   </div>
-                  <div className="text-left">
-                    <span className="font-semibold text-xs text-white block group-hover:text-yellow-300 transition-colors">Speech Modulator</span>
-                    <span className="text-[10px] text-white/40 block mt-0.5 leading-normal">Configure speed, pitch, reverb, and whisper.</span>
+
+                  {/* Card 4: Voice Tuner */}
+                  <div 
+                    onClick={() => {
+                      setShowHistory(true);
+                      setActiveTab("voice");
+                    }}
+                    className="bg-white/5 hover:bg-white/10 border border-white/5 hover:border-yellow-500/20 p-4 rounded-2xl flex flex-col gap-2.5 cursor-pointer transition-all duration-300 group shadow-lg"
+                  >
+                    <div className="w-8 h-8 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center text-yellow-400 group-hover:scale-105 transition-transform">
+                      <Sliders size={16} />
+                    </div>
+                    <div className="text-left">
+                      <span className="font-semibold text-xs text-white block group-hover:text-yellow-300 transition-colors">Speech Modulator</span>
+                      <span className="text-[10px] text-white/40 block mt-0.5 leading-normal">Configure speed, pitch, reverb, and whisper.</span>
+                    </div>
                   </div>
                 </div>
               </div>

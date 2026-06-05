@@ -1,8 +1,14 @@
 import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
+import os from "os";
 
-const DB_PATH = path.join(process.cwd(), "roxy_history.db");
+// Ensure database is stored in a permanent home directory path so it is never lost/forgotten across launches
+const ROXY_DIR = path.join(os.homedir(), ".roxy");
+if (!fs.existsSync(ROXY_DIR)) {
+  fs.mkdirSync(ROXY_DIR, { recursive: true });
+}
+const DB_PATH = path.join(ROXY_DIR, "roxy_history.db");
 const db = new Database(DB_PATH);
 
 // Enforce foreign keys and WAL mode for high performance scale
