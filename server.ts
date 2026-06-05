@@ -308,7 +308,7 @@ app.post("/api/memories", async (req, res) => {
     }
 
     const embResponse = await ai.models.embedContent({
-      model: "text-embedding-004",
+      model: "gemini-embedding-001",
       contents: content,
     });
     const embedding = embResponse.embeddings?.[0]?.values;
@@ -515,7 +515,7 @@ app.post("/api/chat", async (req, res) => {
     try {
       console.log(`[RAG] Embedding user query: "${message}"`);
       const embResponse = await ai.models.embedContent({
-        model: "text-embedding-004",
+        model: "gemini-embedding-001",
         contents: message,
       });
       const embedding = embResponse.embeddings?.[0]?.values;
@@ -701,7 +701,7 @@ Do NOT include any markdown block, code formatting, or explanation. Return the r
           for (const fact of facts) {
             console.log(`[RAG Background] Embedding new factual memory: "${fact}"`);
             const embResponse = await ai.models.embedContent({
-              model: "text-embedding-004",
+              model: "gemini-embedding-001",
               contents: fact,
             });
             const embedding = embResponse.embeddings?.[0]?.values;

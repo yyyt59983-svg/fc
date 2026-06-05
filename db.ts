@@ -116,6 +116,20 @@ export function initDatabase() {
   db.exec("CREATE INDEX IF NOT EXISTS idx_speech_logs_message ON speech_modulation_logs(message_id);");
   db.exec("CREATE INDEX IF NOT EXISTS idx_memories_session ON companion_memories(session_id);");
 
+  // Detect if existing memories have outdated 768-dimension vectors and clear them to re-seed with 3072
+  try {
+    const sampleMem = db.prepare("SELECT embedding FROM companion_memories LIMIT 1").get() as any;
+    if (sampleMem && sampleMem.embedding) {
+      const emb = JSON.parse(sampleMem.embedding);
+      if (emb && emb.length === 768) {
+        console.log("[DB] Detected legacy 768-dimension embeddings. Clearing companion_memories to upgrade to 3072...");
+        db.exec("DELETE FROM companion_memories;");
+      }
+    }
+  } catch (e) {
+    // Table might not exist yet, which is fine
+  }
+
   // Seed default data
   seedDefaultData();
 }
@@ -229,7 +243,7 @@ function seedDefaultData() {
     VALUES (?, ?, ?, ?, 5)
   `);
 
-  const mockEmb = JSON.stringify(new Array(768).fill(0));
+  const mockEmb = JSON.stringify(new Array(3072).fill(0));
 
   for (const dev of devs) {
     const exists = checkMemory.get(dev);
