@@ -2186,6 +2186,32 @@ export default function App() {
 
               {/* Right Column: Visualizer & Actions */}
               <div className="flex-1 flex flex-col justify-between items-center overflow-y-auto scrollbar-hide py-2">
+                {isServerConnected === false && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="w-full max-w-lg mb-4 bg-red-950/20 border border-red-500/20 p-3 rounded-2xl flex flex-col gap-2 text-xs text-white/80 pointer-events-auto"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-red-300">⚠️ Connection to Roxy Server Failed</span>
+                      <button
+                        onClick={() => {
+                          setActiveTab("settings");
+                          setShowHistory(true);
+                        }}
+                        className="text-[10px] text-pink-400 font-mono underline hover:text-pink-300 cursor-pointer"
+                      >
+                        Open Settings
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-white/50 leading-relaxed font-mono text-left">
+                      Expected API Server: {getApiUrl()}<br />
+                      Expected Live WebSocket: {getWsUrl()}<br />
+                      For mobile/Android apps, configure your computer's local IP address.
+                    </p>
+                  </motion.div>
+                )}
+
                 {/* Hero Greeting Section */}
                 <div className="text-center mt-4 md:mt-8 space-y-2 select-none">
                   <motion.div
