@@ -610,3 +610,13 @@ export function searchMemories(
   results.sort((a, b) => b.similarity - a.similarity || b.importance - a.importance);
   return results.slice(0, limit);
 }
+
+export function closeDatabase() {
+  console.log("[DB] Closing Database connection gracefully...");
+  try {
+    db.close();
+    console.log("[DB] Database connection closed.");
+  } catch (err) {
+    console.error("[DB] Error closing database:", err);
+  }
+}

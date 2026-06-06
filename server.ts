@@ -32,7 +32,8 @@ import {
   addMemory,
   getMemoriesForSession,
   deleteMemory,
-  searchMemories
+  searchMemories,
+  closeDatabase
 } from "./db.js";
 
 dotenv.config();
@@ -984,11 +985,45 @@ async function main() {
     });
   }
 
+  server.on("error", (err: any) => {
+    if (err.code === "EADDRINUSE") {
+      console.error(`[CRITICAL] Port ${PORT} is already in use! Another instance of Roxy Server might be running. Please close it first or check your processes.`);
+    } else {
+      console.error("HTTP Server Error:", err);
+    }
+    closeDatabase();
+    process.exit(1);
+  });
+
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`Roxy Server listening at http://0.0.0.0:${PORT}`);
   });
 }
 
+// Graceful Shutdown Handlers
+function handleExit(signal: string) {
+  console.log(`\n[Server] Received ${signal}. Starting graceful shutdown...`);
+  closeDatabase();
+  process.exit(0);
+}
+
+process.on("SIGINT", () => handleExit("SIGINT"));
+process.on("SIGTERM", () => handleExit("SIGTERM"));
+
+process.on("uncaughtException", (err) => {
+  console.error("[CRITICAL] Uncaught Exception:", err);
+  closeDatabase();
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[CRITICAL] Unhandled Rejection at:", promise, "reason:", reason);
+  closeDatabase();
+  process.exit(1);
+});
+
 main().catch((err) => {
   console.error("Server startup crash", err);
+  closeDatabase();
+  process.exit(1);
 });
