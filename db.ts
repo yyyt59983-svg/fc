@@ -116,11 +116,24 @@ export function initDatabase() {
     )
   `);
 
+  // Safely add username column to companion_memories if it doesn't exist (schema upgrade)
+  try {
+    const cols = db.pragma("table_info(companion_memories)") as any[];
+    const hasUsername = cols.some((c: any) => c.name === "username");
+    if (!hasUsername) {
+      db.exec("ALTER TABLE companion_memories ADD COLUMN username TEXT DEFAULT 'lo';");
+      console.log("[DB] Schema upgraded: added 'username' column to companion_memories.");
+    }
+  } catch (e) {
+    // If the table doesn't exist yet, the CREATE TABLE above will include username on next run
+  }
+
   // Create indexes
   db.exec("CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);");
   db.exec("CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);");
   db.exec("CREATE INDEX IF NOT EXISTS idx_speech_logs_message ON speech_modulation_logs(message_id);");
   db.exec("CREATE INDEX IF NOT EXISTS idx_memories_session ON companion_memories(session_id);");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_memories_username ON companion_memories(username);");
 
   // Detect if existing memories have outdated 768-dimension vectors and clear them to re-seed with 3072
   try {
@@ -541,6 +554,28 @@ export function addMemory(
   return getMemory(memoryId);
 }
 
+/**
+ * addMemoryForUser — stores a memory tagged to both sessionId AND username.
+ * This allows cross-session retrieval so Roxy remembers facts across ALL past conversations.
+ */
+export function addMemoryForUser(
+  sessionId: string,
+  username: string,
+  content: string,
+  embedding: number[],
+  importance = 3
+): any {
+  const memoryId = generateId("mem");
+  const embStr = JSON.stringify(embedding);
+
+  db.prepare(`
+    INSERT INTO companion_memories (memory_id, session_id, username, content, embedding, importance)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(memoryId, sessionId, username, content, embStr, importance);
+
+  return getMemory(memoryId);
+}
+
 export function getMemory(memoryId: string): any {
   const row = db.prepare("SELECT * FROM companion_memories WHERE memory_id = ?").get(memoryId);
   if (row && row.embedding) {
@@ -608,6 +643,64 @@ export function searchMemories(
 
   // Sort by similarity descending, then importance descending
   results.sort((a, b) => b.similarity - a.similarity || b.importance - a.importance);
+  return results.slice(0, limit);
+}
+
+/**
+ * searchMemoriesForUser — searches memories across ALL sessions for a given username.
+ * This is the key function for cross-session long-term memory recall.
+ */
+export function searchMemoriesForUser(
+  username: string,
+  queryEmbedding: number[],
+  limit = 10,
+  threshold = 0.0
+): any[] {
+  // Fetch all memories for this user across all sessions
+  const rows = db.prepare("SELECT * FROM companion_memories WHERE username = ?").all(username);
+  if (!rows || rows.length === 0) {
+    // Fallback: also search by sessions belonging to this user (for older memories without username tag)
+    return [];
+  }
+
+  const results: any[] = [];
+  const qNormSq = queryEmbedding.reduce((sum, q) => sum + q * q, 0);
+  const qNorm = Math.sqrt(qNormSq);
+
+  if (qNorm === 0) return [];
+
+  for (const r of rows as any[]) {
+    try {
+      const emb = JSON.parse(r.embedding);
+      if (emb.length !== queryEmbedding.length) continue;
+
+      const dotProduct = emb.reduce((sum: number, val: number, idx: number) => sum + val * queryEmbedding[idx], 0);
+      const embNormSq = emb.reduce((sum: number, val: number) => sum + val * val, 0);
+      const embNorm = Math.sqrt(embNormSq);
+
+      if (embNorm === 0) continue;
+
+      const similarity = dotProduct / (qNorm * embNorm);
+      if (similarity >= threshold) {
+        results.push({
+          memory_id: r.memory_id,
+          content: r.content,
+          importance: r.importance,
+          created_at: r.created_at,
+          similarity: parseFloat(similarity.toFixed(4))
+        });
+      }
+    } catch (e) {
+      // Skip malformed embeddings
+    }
+  }
+
+  // Sort by similarity descending, then importance, then recency
+  results.sort((a, b) =>
+    b.similarity - a.similarity ||
+    b.importance - a.importance ||
+    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
   return results.slice(0, limit);
 }
 

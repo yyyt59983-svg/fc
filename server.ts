@@ -30,9 +30,11 @@ import {
   getUserProfile,
   listUserProfiles,
   addMemory,
+  addMemoryForUser,
   getMemoriesForSession,
   deleteMemory,
   searchMemories,
+  searchMemoriesForUser,
   closeDatabase
 } from "./db.js";
 
@@ -96,7 +98,7 @@ Always address the user as "${userName}" and adjust your responses/pronouns natu
 `;
 
   if (aiMode === "professional") {
-    return `Your name is Roxy. You are a highly professional, intelligent, and polite AI assistant created by "team ommnitech". You MUST speak primarily in refined, clean, and formal Kannada, blending in professional English terms only when necessary. Under no circumstances should you reply purely in English. Ensure that Kannada is the primary language of your conversation. Under no circumstances should you use any informal slang words (such as "macha", "magga", "guru", "ayyo", etc.). Keep your responses helpful and concise.
+    return `Your name is Roxy. You are a highly professional, intelligent, and polite AI assistant created by "team ommnitech". By default, you communicate in formal, polite, and professional English. However, you are fully multilingual and must support and interact in all major Indian languages (such as Hindi, Kannada, Telugu, Tamil, Malayalam, Bengali, Marathi, Gujarati, Punjabi, etc.). If the user interacts with you in their mother tongue or any Indian language, you MUST immediately detect it and converse with them in that exact language. Otherwise, default to professional English. Under no circumstances should you use informal slang (such as "macha", "magga", "guru", "ayyo", etc.). Keep your responses helpful, respectful, and concise.
 ${userContext}
 
 CRITICAL CODE FORMATTING RULES:
@@ -511,7 +513,7 @@ app.post("/api/chat", async (req, res) => {
     // 1. Save user's message to the new Omni Messages table
     const savedUserMsg = addMessage(sessionId, "user", message);
 
-    // 2. Perform Cosine-Similarity Semantic search in SQLite RAG
+    // 2. Perform Cosine-Similarity Semantic search across ALL user sessions (cross-session long-term memory)
     let companionMemoriesText = "";
     try {
       console.log(`[RAG] Embedding user query: "${message}"`);
@@ -521,9 +523,14 @@ app.post("/api/chat", async (req, res) => {
       });
       const embedding = embResponse.embeddings?.[0]?.values;
       if (embedding) {
-        const matchingMemories = searchMemories(sessionId, embedding, 4, 0.35); // top 4, threshold 0.35
+        // First try cross-session user memory
+        let matchingMemories = searchMemoriesForUser(username, embedding, 10, 0.2);
+        // Fallback to session-scoped if no cross-session memories tagged yet
+        if (matchingMemories.length === 0) {
+          matchingMemories = searchMemories(sessionId, embedding, 10, 0.2);
+        }
         if (matchingMemories && matchingMemories.length > 0) {
-          console.log(`[RAG] Found ${matchingMemories.length} relevant semantic memories!`);
+          console.log(`[RAG] Found ${matchingMemories.length} relevant long-term memories!`);
           companionMemoriesText = matchingMemories.map(m => `- ${m.content}`).join("\n");
         }
       }
@@ -531,8 +538,8 @@ app.post("/api/chat", async (req, res) => {
       console.warn("[RAG] Cosine embedding search failed, proceeding without long-term memories:", e);
     }
 
-    // 3. Construct sliding history context from SQLite
-    const historyRows = getSessionHistory(sessionId, 20); // last 20 messages
+    // 3. Construct sliding history context from SQLite (last 50 messages)
+    const historyRows = getSessionHistory(sessionId, 50);
 
     // Format for @google/genai chat API
     let formattedHistory: any[] = [];
@@ -568,10 +575,25 @@ app.post("/api/chat", async (req, res) => {
     const userName = userProfile?.dynamic_preferences?.name || "User";
     const userGender = userProfile?.dynamic_preferences?.gender || "not specified";
 
-    // 4. Formulate System Prompt integrating long-term factual memories
+    // Build a summary of all known user preferences to inject into prompt
+    let knownUserFacts = "";
+    if (userProfile?.dynamic_preferences) {
+      const prefs = userProfile.dynamic_preferences;
+      const factsArr = Object.entries(prefs)
+        .filter(([k]) => !["name", "gender"].includes(k))
+        .map(([k, v]) => `- ${k}: ${v}`);
+      if (factsArr.length > 0) {
+        knownUserFacts = `\n\n[KNOWN USER PROFILE FACTS (You already know these about the user. Naturally weave them into your responses to show you remember):]\n${factsArr.join("\n")}`;
+      }
+    }
+
+    // 4. Formulate System Prompt integrating long-term factual memories AND stored profile facts
     let systemInstruction = getSystemInstruction(selectedMode, userName, userGender);
+    if (knownUserFacts) {
+      systemInstruction += knownUserFacts;
+    }
     if (companionMemoriesText) {
-      systemInstruction += `\n\n[RELEVANT LONG-TERM MEMORIES OF PAST INTERACTION (Use this context naturally to prove you remember them. Never say 'According to my memories'):]\n${companionMemoriesText}`;
+      systemInstruction += `\n\n[RELEVANT LONG-TERM MEMORIES FROM PAST CONVERSATIONS (Use this context naturally to prove you remember them. Never say 'According to my memories'):]\n${companionMemoriesText}`;
     }
 
     // Call Gemini for response
@@ -707,7 +729,8 @@ Do NOT include any markdown block, code formatting, or explanation. Return the r
             });
             const embedding = embResponse.embeddings?.[0]?.values;
             if (embedding) {
-              addMemory(sessionId, fact, embedding, 3);
+              // Tag memory with username for cross-session recall
+              addMemoryForUser(sessionId, username, fact, embedding, 3);
             }
           }
         }
