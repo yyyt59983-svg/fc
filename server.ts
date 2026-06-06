@@ -943,7 +943,7 @@ async function main() {
               const liveSessionId = "sess_default"; // Live sessions use the default session
 
               // Save user speech transcription to DB
-              const userSpeech = message.serverContent?.inputAudioTranscription?.text;
+              const userSpeech = message.serverContent?.inputTranscription?.text;
               if (userSpeech && userSpeech.trim()) {
                 try {
                   addMessage(liveSessionId, "user", userSpeech.trim());
@@ -952,7 +952,7 @@ async function main() {
               }
 
               // Save Roxy's output transcription to DB and run background memory extraction
-              const roxyTranscription = message.serverContent?.outputAudioTranscription?.text;
+              const roxyTranscription = message.serverContent?.outputTranscription?.text;
               if (roxyTranscription && roxyTranscription.trim()) {
                 try {
                   addMessage(liveSessionId, "companion", roxyTranscription.trim());
