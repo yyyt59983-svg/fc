@@ -929,7 +929,7 @@ async function main() {
                         const solved = await resolveVideoIdBackend(args.query);
                         if (solved) {
                           console.log(`Backend Live Session resolved successfully: "${solved.title}" (ID: ${solved.videoId})`);
-                          args.query = solved.videoId; // Override with resolved videoId!
+                          args.query = solved.videoId;
                         }
                       } catch (err) {
                         console.error("Backend Live Session failed to resolve song:", err);
@@ -938,10 +938,80 @@ async function main() {
                   }
                 }
               }
+
+              // === PERSISTENT MEMORY: Save live conversation turns to SQLite ===
+              const liveSessionId = "sess_default"; // Live sessions use the default session
+
+              // Save user speech transcription to DB
+              const userSpeech = message.serverContent?.inputAudioTranscription?.text;
+              if (userSpeech && userSpeech.trim()) {
+                try {
+                  addMessage(liveSessionId, "user", userSpeech.trim());
+                  console.log(`[Live Memory] Saved user speech: "${userSpeech.trim().substring(0, 60)}..."`);
+                } catch (e) { /* non-blocking */ }
+              }
+
+              // Save Roxy's output transcription to DB and run background memory extraction
+              const roxyTranscription = message.serverContent?.outputAudioTranscription?.text;
+              if (roxyTranscription && roxyTranscription.trim()) {
+                try {
+                  addMessage(liveSessionId, "companion", roxyTranscription.trim());
+                  console.log(`[Live Memory] Saved Roxy voice response: "${roxyTranscription.trim().substring(0, 60)}..."`);
+
+                  // Also run background memory extraction (same as text chat) if we have user speech too
+                  if (userSpeech && userSpeech.trim()) {
+                    (async () => {
+                      try {
+                        const memoryPrompt = `Analyze this voice conversation turn between a User and an AI companion named Roxy.
+User: "${userSpeech.trim()}"
+Roxy: "${roxyTranscription.trim()}"
+
+Extract any key personal facts, habits, likes, dislikes, or preferences that the User revealed about themselves (e.g. favorite drink, dog's name, job, hobbies, city, etc.).
+Return the facts as a JSON array of strings, for example: ["User likes spicy food", "User's dog is named Rocky"].
+If no new facts were revealed, return an empty array [].
+Do NOT include any markdown block, code formatting, or explanation. Return the raw JSON array string.`;
+
+                        const extractionRes = await ai.models.generateContent({
+                          model: "gemini-2.5-flash",
+                          contents: memoryPrompt,
+                          config: { responseMimeType: "application/json" }
+                        });
+
+                        const factsText = (extractionRes.text || "[]").trim();
+                        let facts: any[] = [];
+                        try {
+                          facts = JSON.parse(factsText);
+                        } catch (e) {
+                          const jsonMatch = factsText.match(/\[[\s\S]*?\]/);
+                          if (jsonMatch) facts = JSON.parse(jsonMatch[0]);
+                        }
+
+                        if (Array.isArray(facts) && facts.length > 0) {
+                          for (const fact of facts) {
+                            console.log(`[Live RAG] Embedding new memory from voice: "${fact}"`);
+                            const embResponse = await ai.models.embedContent({
+                              model: "gemini-embedding-001",
+                              contents: fact,
+                            });
+                            const embedding = embResponse.embeddings?.[0]?.values;
+                            if (embedding) {
+                              addMemoryForUser(liveSessionId, username, fact, embedding, 3);
+                            }
+                          }
+                        }
+                      } catch (err) {
+                        console.warn("[Live Memory Background] Failed to extract memories from voice turn:", err);
+                      }
+                    })();
+                  }
+                } catch (e) { /* non-blocking */ }
+              }
+
               ws.send(JSON.stringify({ type: "message", data: message }));
             } catch (e) { }
           }
         }
+
       });
     } catch (err: any) {
       console.error("Failed to start Gemini Live session on backend:", err);
