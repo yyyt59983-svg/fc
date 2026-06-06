@@ -379,17 +379,6 @@ export default function App() {
 
   // Load Sessions, Voice Profiles, and User Profile on Startup
   const loadInitialData = async () => {
-    // Auto-request microphone permission on startup to avoid blocks
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .then((stream) => {
-          stream.getTracks().forEach(track => track.stop());
-        })
-        .catch((err) => {
-          console.warn("Microphone permission auto-request rejected/failed", err);
-        });
-    }
-
     const currentApiUrl = getApiUrl();
     const isOk = await checkServerConnection(currentApiUrl);
     setIsServerConnected(isOk);
